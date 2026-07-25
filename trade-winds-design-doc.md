@@ -13,7 +13,7 @@
 - **Pitch:** You are a small trader in the fictional continent of Selvara. Buy low in one city, travel, sell high in another. Read the newspapers, predict crashes and booms, borrow from banks, dodge the taxman with a good CA, and build a fortune. Endless play — your score is your peak net worth.
 - **Platform:** Mobile-portrait web app first (360×740 design target). Wrap with Capacitor later.
 - **Session length target:** 5–15 minutes per sitting; progress saved locally, resume anytime.
-- **Currency:** Denari, symbol **Ð**
+- **Currency:** Dollar, symbol **$**
 - **Save:** localStorage, single save slot + local high-score table (top 10 runs: peak net worth, days survived, difficulty).
 - **End condition:** Endless. Run ends only on bankruptcy (see §9). Score = **peak net worth ever reached** during the run.
 
@@ -32,7 +32,8 @@ Each day the player is in exactly one city and may, in any order:
 
 While traveling multiple days, the player still receives newspapers each morning but cannot trade.
 
-**Cargo capacity:** starts at 40 units. Upgradable: 100 units (Ð2,500), 250 (Ð12,000), 600 (Ð60,000), 1,500 (Ð300,000). ⚙
+**Cargo capacity:** starts at 40 units. Upgradable: 100 units ($2,500), 250 ($12,000), 600 ($60,000), 1,500 ($300,000). ⚙
+**Cargo unit model:** 1 cargo slot = 1 unit of ANY commodity, regardless of type. No weight/bulk mechanic — a unit of Grain and a unit of Electronics each cost 1 slot; the strategic tradeoff comes purely from each commodity's own base price (§5), not from bulk.
 
 ---
 
@@ -40,7 +41,7 @@ While traveling multiple days, the player still receives newspapers each morning
 
 | | Noob | Pro | Expert |
 |---|---|---|---|
-| Starting cash | Ð2,000 | Ð1,000 | Ð500 |
+| Starting cash | $2,000 | $1,000 | $500 |
 | Starting city | Farrow | Farrow | Copperfell |
 | Rumor accuracy bonus | +15% | — | −10% |
 | First tax year | waived | normal | normal |
@@ -52,69 +53,71 @@ While traveling multiple days, the player still receives newspapers each morning
 
 ---
 
-## 4. World — 15 Cities in 4 Unlock Tiers
+## 4. World — 15 Cities in 4 Unlock Tiers (Tier 1+2 / 8 cities in v1)
 
 Cities unlock by **net worth** (cash + deposits + goods at last-known prices − debt). A newspaper headline announces each unlock ("Trade routes to Port Vela now open to licensed merchants!").
 
-City count is config-driven: each city is a data object; removing one from the config removes it from the game cleanly. **v1 may ship with only Tier 1+2 (8 cities) if 15 feels heavy — the design supports both.**
+City count is config-driven: each city is a data object; removing one from the config removes it from the game cleanly. **Decision: v1 ships with only Tier 1+2 (8 cities: Farrow, Saltmere, Copperfell, Millbrook, Port Vela, Ironvale, Silkden, Greyharbor). Tier 3 and Tier 4 (7 cities) are defined below for design completeness and config compatibility, but are OUT of v1 scope — see §13.** Since city unlock is net-worth-gated, capping at Tier 2 also caps v1's addressable net-worth range at roughly the §11 day-90 target; the $2,000,000 and $250,000 unlock thresholds simply go unused until Tier 3/4 ship.
 
-### Tier 1 — available from start (net worth Ð0)
+### Tier 1 — available from start (net worth $0)
 | City | Character | Bank size | Hotel/night | Produces (cheap) | Wants (dear) |
 |---|---|---|---|---|---|
-| **Farrow** | Farming town | Small | Ð15 | Grain, Cotton | Iron, Salt |
-| **Saltmere** | Fishing/salt port | Small | Ð20 | Salt, Spices | Grain, Textiles |
-| **Copperfell** | Mining town | Small | Ð18 | Iron | Grain, Cotton |
-| **Millbrook** | Textile mills | Small | Ð22 | Textiles | Cotton, Iron |
+| **Farrow** | Farming town | Small | $15 | Grain, Cotton | Iron, Salt |
+| **Saltmere** | Fishing/salt port | Small | $20 | Salt, Spices | Grain, Textiles |
+| **Copperfell** | Mining town | Small | $18 | Iron | Grain, Cotton |
+| **Millbrook** | Textile mills | Small | $22 | Textiles | Cotton, Iron |
 
-### Tier 2 — unlock at net worth **Ð25,000** ⚙
+### Tier 2 — unlock at net worth **$25,000** ⚙
 | City | Character | Bank size | Hotel | Produces | Wants |
 |---|---|---|---|---|---|
-| **Port Vela** | Big trading port, volatile | Medium | Ð45 | Spices, Silk (imports) | everything, swingy |
-| **Ironvale** | Steel city | Medium | Ð40 | Steel | Iron, Fuel |
-| **Silkden** | Luxury bazaar | Medium | Ð60 | — | Silk, Spices, Electronics |
-| **Greyharbor** | Grey-market port | Small | Ð30 | random cheap lots | high spreads, risky |
+| **Port Vela** | Big trading port, volatile | Medium | $45 | Spices, Silk (imports) | everything, swingy |
+| **Ironvale** | Steel city | Medium | $40 | Steel | Iron, Fuel |
+| **Silkden** | Luxury bazaar | Medium | $60 | — | Silk, Spices |
+| **Greyharbor** | Grey-market port | Small | $30 | random cheap lots | high spreads, risky |
 
-### Tier 3 — unlock at net worth **Ð250,000** ⚙
+### Tier 3 — unlock at net worth **$250,000** ⚙
 | City | Character | Bank size | Hotel | Produces | Wants |
 |---|---|---|---|---|---|
-| **Auren City** | Capital. Huge bank, best loans | Huge | Ð120 | — | Electronics, Silk, Steel |
-| **Voltspire** | Tech city | Large | Ð90 | Electronics | Rare Metals, Steel |
-| **Duskfield** | Oil fields | Medium | Ð50 | Fuel | Steel, Electronics |
-| **Kessler Mines** | Deep mining colony | Small | Ð70 | Rare Metals | Fuel, Grain (remote, pricey food) |
+| **Auren City** | Capital. Huge bank, best loans | Huge | $120 | — | Electronics, Silk, Steel |
+| **Voltspire** | Tech city | Large | $90 | Electronics | Rare Metals, Steel |
+| **Duskfield** | Oil fields | Medium | $50 | Fuel | Steel, Electronics |
+| **Kessler Mines** | Deep mining colony | Small | $70 | Rare Metals | Fuel, Grain (remote, pricey food) |
 
-### Tier 4 — unlock at net worth **Ð2,000,000** ⚙
+### Tier 4 — unlock at net worth **$2,000,000** ⚙
 | City | Character | Bank size | Hotel | Special |
 |---|---|---|---|---|
-| **Novara Heights** | Financial district | Huge | Ð200 | Best deposit rates; insider-info hub (cheapest, most accurate) |
-| **Frosthelm** | Frozen far north | Small | Ð150 | Rare Metals at extreme discount; travel there costs 3 days + high fare; brutal spreads |
-| **The Freeport** | Island tax haven | Large | Ð180 | Profit realized while based here during year-end taxed at 12% flat (no CA needed) — but no loans offered here |
+| **Novara Heights** | Financial district | Huge | $200 | Best deposit rates; insider-info hub (cheapest, most accurate) |
+| **Frosthelm** | Frozen far north | Small | $150 | Rare Metals at extreme discount; travel there costs 3 days + high fare; brutal spreads |
+| **The Freeport** | Island tax haven | Large | $180 | Profit realized while based here during year-end taxed at 12% flat (no CA needed) — but no loans offered here |
 
 ### Travel
 Distance matrix (days): within same tier cluster = 1 day; adjacent tier = 2 days; Tier 1 ↔ Tier 3/4 = 3 days. Frosthelm always 3 days from anywhere except Kessler Mines (2).
-Fare = Ð10 × days × (1 + destination tier × 0.5), doubled if carrying > 60% cargo capacity ⚙.
+Fare = $10 × days × (1 + destination tier × 0.5), doubled if carrying > 60% cargo capacity ⚙.
 Exact matrix: generate a 15×15 table in config following these rules; hand-tweak later.
 
 ---
 
-## 5. Commodities — start with 3, unlock to 10
+## 5. Commodities — start with 3, unlock to 10 (9 reachable in v1; Electronics is Tier 3, out of v1 scope — §13)
 
 Unlocks are tied to city unlocks (you meet the commodity where it's traded) plus a license fee paid once at any bank.
 
-| # | Commodity | Unlock | License | Base price Ð | Volatility class | Daily drift |
+| # | Commodity | Unlock | License | Base price $ | Volatility class | Daily drift |
 |---|---|---|---|---|---|---|
 | 1 | Grain | start | — | 10 | Stable | ±4% |
 | 2 | Cotton | start | — | 16 | Stable | ±5% |
 | 3 | Iron | start | — | 25 | Low | ±7% |
-| 4 | Salt | Tier 1, day 5+ | Ð200 | 14 | Stable | ±4% |
-| 5 | Textiles | Tier 1, day 5+ | Ð400 | 40 | Low | ±8% |
-| 6 | Spices | Tier 2 | Ð1,500 | 90 | Medium | ±12% |
-| 7 | Fuel | Tier 2 | Ð2,500 | 60 | Medium | ±14% |
-| 8 | Steel | Tier 2 | Ð4,000 | 120 | Medium | ±12% |
-| 9 | Silk | Tier 3 | Ð10,000 | 300 | High | ±18% |
-| 10 | Electronics | Tier 3 | Ð25,000 | 800 | High | ±22% |
-| — | **Rare Metals** | Tier 3 (Kessler) | Ð60,000 | 2,500 | Extreme | ±30% |
+| 4 | Salt | Tier 1, day 5+ | $200 | 14 | Stable | ±4% |
+| 5 | Textiles | Tier 1, day 5+ | $400 | 40 | Low | ±8% |
+| 6 | Spices | Tier 2 | $1,500 | 90 | Medium | ±12% |
+| 7 | Fuel | Tier 2 | $2,500 | 60 | Medium | ±14% |
+| 8 | Steel | Tier 2 | $4,000 | 120 | Medium | ±12% |
+| 9 | Silk | Tier 2 | $10,000 | 300 | High | ±18% |
+| 10 | Electronics | Tier 3 | $25,000 | 800 | High | ±22% |
+| — | **Rare Metals** | Tier 3 (Kessler) | $60,000 | 2,500 | Extreme | ±30% |
 
-Rare Metals is one commodity in v1. **v2 idea (do NOT build in v1):** split into periodic-table variants (Lithium, Cobalt, Platinum, Iridium) as sub-lots.
+Silk's unlock tier was moved from Tier 3 to Tier 2 to match Port Vela and Silkden, both Tier 2 cities that produce/want it — see §4. Electronics and Rare Metals remain Tier 3 and are OUT of v1 scope (§13) along with all Tier 3/4 cities.
+
+Rare Metals is one commodity in v1 scope for later (Tier 3). **v2 idea (do NOT build in v1):** split into periodic-table variants (Lithium, Cobalt, Platinum, Iridium) as sub-lots.
 
 ---
 
@@ -164,14 +167,14 @@ price(city, good, day) =
 
 ### Fog of wealth
 As net worth grows, public papers get vaguer ⚙:
-- < Ð50k: rumors name the exact city and good.
-- Ð50k–500k: rumors name the good but only the region ("northern mining towns").
-- > Ð500k: rumors are directional only ("industrial metals face turbulence").
+- < $50k: rumors name the exact city and good.
+- $50k–500k: rumors name the good but only the region ("northern mining towns").
+- > $500k: rumors are directional only ("industrial metals face turbulence").
 
 ### Insider information
 - Available in Medium+ bank cities via an **Informant** contact; best (cheapest per accuracy) in Novara Heights.
 - A tip = exact city, good, direction, and day. **70% accurate** ⚙ (75% in Novara).
-- Price scales with net worth: `max(Ð500, 1% of net worth)` per tip ⚙.
+- Price scales with net worth: `max($500, 1% of net worth)` per tip ⚙.
 - Resolution stories also cover insider tips ("your informant's warehouse-fire tip proved false — the fire was staged").
 
 ---
@@ -195,7 +198,7 @@ rank = clamp(floor(score), 1, 10)
 
 ### Loans (city bank size × trader rank)
 Max principal = `baseCap(bankSize) × rankFactor(rank)`
-- baseCap: Small Ð1,000 · Medium Ð10,000 · Large Ð50,000 · Huge Ð250,000 ⚙
+- baseCap: Small $1,000 · Medium $10,000 · Large $50,000 · Huge $250,000 ⚙
 - rankFactor: rank 1 = 1×, each rank ×1.8 (rank 10 ≈ 198×) ⚙
 - Interest: Small 0.9%/day · Medium 0.7% · Large 0.55% · Huge 0.4% ⚙ (× difficulty multiplier). Simple daily interest added to balance.
 - One active loan per bank; up to 3 banks concurrently.
@@ -208,7 +211,7 @@ Max principal = `baseCap(bankSize) × rankFactor(rank)`
 ### Default — player's choice
 Trigger: a loan is 15 days past its 60-day term, OR total debt > 2× net worth for 7 straight days ⚙. The bank confronts the player with three options (player picks — per design decision):
 1. **Surrender assets:** bank seizes deposits + cargo at 70% value until debt cleared; run continues; repaymentRecord −0.5.
-2. **Restructure (debt pressure):** debt refinanced at 2× interest + Ð p.d. collector fee = 0.5% of debt; if debt still > 2× net worth after 15 more days → forced game over; repaymentRecord −0.3.
+2. **Restructure (debt pressure):** debt refinanced at 2× interest + $ p.d. collector fee = 0.5% of debt; if debt still > 2× net worth after 15 more days → forced game over; repaymentRecord −0.3.
 3. **Declare bankruptcy:** run ends now; score = peak net worth reached (a dignified exit).
 
 ---
@@ -223,10 +226,10 @@ Trigger: a loan is 15 days past its 60-day term, OR total debt > 2× net worth f
 ### CA tiers (hire for the year, fee due on hiring, effective that fiscal year)
 | Tier | Annual fee | Tax rate on profit | Profit cap at this rate | Above cap |
 |---|---|---|---|---|
-| — none — | Ð0 | 30% | — | — |
-| Junior CA | Ð25,000 | 20% | Ð1,000,000 | 30% |
-| Senior CA | Ð100,000 | 12% | Ð5,000,000 | 30% |
-| Elite Firm | Ð500,000 | 8% | Ð25,000,000 | 30% |
+| — none — | $0 | 30% | — | — |
+| Junior CA | $25,000 | 20% | $1,000,000 | 30% |
+| Senior CA | $100,000 | 12% | $5,000,000 | 30% |
+| Elite Firm | $500,000 | 8% | $25,000,000 | 30% |
 ⚙ all values. Hiring available at Medium+ bank cities. The Freeport (§4) is the endgame alternative: be physically there at year-end → flat 12%, no CA, no cap — but you sacrifice being elsewhere and it has no loans.
 
 ---
@@ -236,14 +239,14 @@ Trigger: a loan is 15 days past its 60-day term, OR total debt > 2× net worth f
 A competent Pro-mode player, no save-scumming:
 | Day | Net worth target |
 |---|---|
-| 10 | Ð4,000–6,000 |
-| 30 | Ð30,000–60,000 (Tier 2 open) |
-| 90 (year 1) | Ð200,000–400,000 |
-| 180 | Ð1.5M–3M (Tier 4 opening) |
-| 360 | Ð10M–30M |
+| 10 | $4,000–6,000 |
+| 30 | $30,000–60,000 (Tier 2 open) |
+| 90 (year 1) | $200,000–400,000 |
+| 180 | $1.5M–3M (Tier 4 opening) |
+| 360 | $10M–30M |
 
 **Balance test harness (build this before the UI):** three scripted bots — (a) random trader, (b) greedy spread-chaser ignoring news, (c) news-follower using rumors + loans. Run 1,000 seeded games each, 360 days. Health checks:
-- Random bot should hover near broke (median < Ð10k at day 90).
+- Random bot should hover near broke (median < $10k at day 90).
 - Greedy bot ≈ 0.5× targets. News bot ≈ targets.
 - No strategy should exceed 3× targets → if it does, find and nerf the exploit (usually loan stacking or an event multiplier).
 - Bankruptcy rate on Expert ≈ 25–40% by day 90.
@@ -268,7 +271,9 @@ Placeholder art first (colored rectangles + emoji). Pixel assets are a later pas
 ## 13. v1 Scope Fence
 
 **IN:** everything above except—
-**OUT (v2+):** online leaderboard, Rare Metal sub-variants, travel ambush/storm events, multiple save slots, achievements, sound/music, warehouse storage per city, hired traders/automation, Greyharbor smuggling mini-mechanic (v1: it's just a normal city with wider spreads).
+**OUT (v2+):** Tier 3 and Tier 4 cities (Auren City, Voltspire, Duskfield, Kessler Mines, Novara Heights, Frosthelm, The Freeport) and their unlocks; Electronics and Rare Metals commodities; online leaderboard, Rare Metal sub-variants, travel ambush/storm events, multiple save slots, achievements, sound/music, warehouse storage per city, hired traders/automation, Greyharbor smuggling mini-mechanic (v1: it's just a normal city with wider spreads).
+
+With Tier 3/4 out, v1's world is 8 cities (§4) and 9 commodities (§5, all but Electronics), and the CA/tax system (§10) and hidden rank (§8) still apply in full since they aren't tier-gated. The §11 day-180/360 targets assume the full 15-city game and are aspirational for v2; v1 balancing should focus on the day-10/30/90 targets, which fit entirely within Tier 1+2.
 
 ---
 
