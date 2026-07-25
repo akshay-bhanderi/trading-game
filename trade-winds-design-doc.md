@@ -34,6 +34,7 @@ While traveling multiple days, the player still receives newspapers each morning
 
 **Cargo capacity:** starts at 40 units. Upgradable: 100 units ($2,500), 250 ($12,000), 600 ($60,000), 1,500 ($300,000). ⚙
 **Cargo unit model:** 1 cargo slot = 1 unit of ANY commodity, regardless of type. No weight/bulk mechanic — a unit of Grain and a unit of Electronics each cost 1 slot; the strategic tradeoff comes purely from each commodity's own base price (§5), not from bulk.
+**Warehouse storage** (§14) is a separate, per-city system: goods stored there don't count against cargo capacity and don't travel with you when you leave — see §14 for how it differs from what you carry.
 
 ---
 
@@ -263,6 +264,9 @@ A competent Pro-mode player, no save-scumming:
 6. **Travel map:** unlocked cities, fare + days per destination, last-seen prices tooltip per city.
 7. **Year-end tax statement:** profit breakdown, CA effect, tax paid.
 8. **Game over / score screen:** peak net worth, days, graph of net worth over time, local high-score table.
+9. **Warehouse screen** (§14): vertical building elevation, one row per floor, each floor its own fill/empty capacity bar stacked into one building-height meter; buy-next-floor button inline.
+10. **Real Estate / Hotels screen** (§15): list of owned hotels by city with tier, daily revenue, and an upgrade button; "buy hotel here" available from the City screen when not yet owned.
+11. **Aviation / Fleet screen** (§16): list of owned planes, each with a status toggle (Idle / Leased Monthly / Leased Annual / Personal use) and running income/maintenance totals.
 
 Placeholder art first (colored rectangles + emoji). Pixel assets are a later pass: Kenney.nl packs + AI-generated icons.
 
@@ -271,13 +275,98 @@ Placeholder art first (colored rectangles + emoji). Pixel assets are a later pas
 ## 13. v1 Scope Fence
 
 **IN:** everything above except—
-**OUT (v2+):** Tier 3 and Tier 4 cities (Auren City, Voltspire, Duskfield, Kessler Mines, Novara Heights, Frosthelm, The Freeport) and their unlocks; Electronics and Rare Metals commodities; online leaderboard, Rare Metal sub-variants, travel ambush/storm events, multiple save slots, achievements, sound/music, warehouse storage per city, hired traders/automation, Greyharbor smuggling mini-mechanic (v1: it's just a normal city with wider spreads).
+**OUT (v2+):** Tier 3 and Tier 4 cities (Auren City, Voltspire, Duskfield, Kessler Mines, Novara Heights, Frosthelm, The Freeport) and their unlocks; Electronics and Rare Metals commodities; online leaderboard, Rare Metal sub-variants, travel ambush/storm events, multiple save slots, achievements, sound/music, hired traders/automation, Greyharbor smuggling mini-mechanic (v1: it's just a normal city with wider spreads).
 
 With Tier 3/4 out, v1's world is 8 cities (§4) and 9 commodities (§5, all but Electronics), and the CA/tax system (§10) and hidden rank (§8) still apply in full since they aren't tier-gated. The §11 day-180/360 targets assume the full 15-city game and are aspirational for v2; v1 balancing should focus on the day-10/30/90 targets, which fit entirely within Tier 1+2.
 
+**Phase 2 — Wealth Systems (§14–§16):** Warehouse storage, Hotel ownership, and Aviation leasing are now fully specified (this was "warehouse storage per city," previously listed as a vague OUT item — it's designed in full below, just sequenced after the core loop). Build them only after the v1 core loop ships and clears the §11 bot-harness balance pass; they are new sources of net worth and must be balance-tested on their own before release, per §17's build order. None of the §11 targets above assume their income.
+
 ---
 
-## 14. Tech & Handoff Notes for Claude Code
+## 14. Warehouse Storage (per-city, floor-based)
+
+A second, separate capacity system from Cargo (§2). Cargo is what you *carry* while traveling; a Warehouse is a building you *own in one specific city* — goods stored there don't count against cargo capacity and don't move with you, but (same rule as §6) you can only buy/sell them while physically in that city. No remote trading, ever.
+
+**Ownership:** one warehouse per city, buildable in any city you've unlocked. You can own warehouses in several cities at once — a distributed storage network, letting you stockpile a producer city's cheap goods beyond what you can carry, without committing cargo space to them while you go sell elsewhere.
+
+**Floors:** up to 6 per warehouse, built in order (can't skip ahead). Floor 1 is the base purchase; floors 2–6 add capacity at rising cost and rising upkeep:
+
+| Floor | Capacity added | Cumulative capacity | Build cost | Annual maintenance ⚙ |
+|---|---|---|---|---|
+| 1 (Ground) — base purchase | 150 | 150 | $3,000 | $150/yr |
+| 2 | +250 | 400 | $8,000 | $300/yr |
+| 3 | +400 | 800 | $20,000 | $600/yr |
+| 4 | +650 | 1,450 | $50,000 | $1,200/yr |
+| 5 | +1,000 | 2,450 | $120,000 | $2,500/yr |
+| 6 (Penthouse) | +1,600 | 4,050 | $300,000 | $5,000/yr |
+
+- Maintenance across every owned warehouse/floor bills at year-end alongside tax (§10); unpaid maintenance accrues as Small-bank-rate debt against the player, same as an unpaid tax shortfall.
+- Stored goods count toward net worth (§4) at last-known local price, exactly like carried cargo.
+- **Graphic (§12 screen 9):** a vertical building elevation, one row per floor — lit/filled = built, dim outline = not yet built and purchasable inline. Each built floor is its own mini used/free capacity bar; stacked, they read as one building-height meter. Same bar-fill visual language as the Market screen's cargo bar, for consistency.
+- **Risk:** extend §7's event table with **Warehouse fire** — low-probability, destroys 10–40% of one city's stored goods ⚙. Optional **insurance** (2%/year of stored goods' value, billed with maintenance) caps fire loss at 10%.
+- **Sell-back:** the whole warehouse (all floors) liquidates for 50% of total build cost.
+
+---
+
+## 15. Hotel Ownership (city-wise real estate)
+
+Distinct from the flat **Stay** cost already in §4's "Hotel/night" column — that's what a non-owner pays as a guest. Buying a hotel makes you the owner of that city's lodging business instead.
+
+**Ownership:** one hotel per city, in any unlocked city. Own hotels in as many cities as you want — a hospitality portfolio, not a single building.
+
+Cost and revenue scale off each city's *existing* nightly rate (§4) rather than a new hardcoded per-city table, keeping the system config-driven like the rest of the doc — pricier cities (higher nightly rate) mean pricier hotels with proportionally bigger yield.
+
+| Tier | Name | Build/upgrade cost (× city nightly rate) | Passive revenue (× nightly rate /day) | Annual license fee (× nightly rate /yr) |
+|---|---|---|---|---|
+| 1 | Inn | 500× | 0.8× | 20× |
+| 2 | Lodge | +1,200× | 1.8× | 45× |
+| 3 | Grand Hotel | +3,000× | 3.6× | 100× |
+| 4 | Resort | +7,500× | 7.0× | 220× |
+
+⚙ all multipliers. Upgrade cost is the marginal amount on top of the previous tier (Lodge's "+1,200×" is paid on top of what Inn already cost). Example — Silkden at $60/night: Tier 1 Inn costs $30,000, earns $48/day (~$4,320 per 90-day game year), annual license $1,200/yr.
+
+- **Free stays:** while you own a city's hotel, the Stay action (§2/§4) there costs you $0.
+- **Passive revenue accrues daily**, whether you're in that city or not, riding the same daily tick that already delivers newspapers while you travel (§2) — no extra turn cost, and it keeps earning while you're on the road or trading elsewhere.
+- **Epidemic** events (§7 already specifies "hotel closed") pause an owned hotel's revenue for the event's duration in that city — reuses the existing effect, no new event type needed.
+- **Sell-back:** 50% of total invested (build + all upgrades), matching the Warehouse salvage rate (§14).
+- Annual license fee bills at the same year-end cadence as CA fees and warehouse maintenance (§10).
+
+---
+
+## 16. Aviation — Plane Ownership & Leasing
+
+A third asset class: buy planes, then either lease them out for passive income or fly them yourself. Loosely modeled on real aircraft leasing, where lessors earn a monthly "lease rate factor" of roughly 0.6–1.2% of hull value, and longer commitments pay a lower per-month rate in exchange for guaranteed income.
+
+**Purchase:** available at any Medium+ bank city (§9), reflecting the financing an aircraft purchase needs. No fleet-size cap beyond cash on hand.
+
+| Class | Purchase price | Monthly lease rate (× price) | Annual lease rate\* (× price) | Personal-travel benefit |
+|---|---|---|---|---|
+| Prop Feeder | $150,000 | 1.0%/mo | 10%/yr | Fare −20% |
+| Regional Jet | $600,000 | 0.9%/mo | 9%/yr | Fare −35%, travel days −1 (min 1) |
+| Freighter | $1,200,000 | 1.1%/mo | 10.5%/yr | Fare −25%, +50% effective cargo capacity while flying |
+| Widebody | $4,000,000 | 0.8%/mo | 8%/yr | Fare −50%, travel days −1 (min 1), +25% cargo |
+
+\* "Annual" here means one 90-day game year (§10's tax-year length), not a real calendar year — every recurring system in the game runs on that same clock.
+
+**Per plane, the owner picks a status:**
+- **Idle** — earns nothing; still owes maintenance (below). A pure drain — don't leave a plane idle.
+- **Leased Monthly** — revenue = price × monthly rate, credited daily (rate ÷ 30/day). Cancellable anytime with 3 days' notice, at which point income stops. Highest rate, zero commitment.
+- **Leased Annual** — revenue = price × annual rate, credited daily (rate ÷ 90/day) for a firm 90-day term. Neither side can cancel early without penalty: the lessee must pay 50% of the term's remaining revenue immediately, and the lessor forfeits the rest. Lower rate than 12 months of Monthly, but guaranteed.
+- **Personal use** — no lease income; applies that plane's fare/day/cargo bonus to your next Travel action instead.
+
+**Carrying cost:** every owned plane — leased or not — owes maintenance/insurance of 0.3%/month of purchase price ⚙, billed at year-end alongside tax, CA fee, warehouse maintenance, and hotel license (§10).
+
+**Depreciation & resale:** a plane's value for net worth (§4) and for sale starts at 90% of purchase price and depreciates 2%/game-year ⚙, floored at 40% of purchase price. Selling pays out current depreciated value minus a 10% liquidation fee.
+
+**Events** — extend §7's table:
+| Event | Effect |
+|---|---|
+| Fuel price spike | (existing Fuel-commodity event, §5) also raises all plane maintenance +30% for 5–8 days |
+| Aviation safety incident | One random leased plane grounded 5–10 days — income paused, maintenance still owed |
+
+---
+
+## 17. Tech & Handoff Notes for Claude Code
 
 - **Stack:** Vite + React + TypeScript. Zustand (or plain reducer) for game state. No backend. localStorage persistence with schema version number for migrations.
 - **Architecture rule #1:** `/src/engine` is pure TypeScript with ZERO React imports — cities, prices, events, bank, tax, rank, RNG. `/src/ui` renders state and dispatches actions. The engine must run headless in Node for the §11 bot harness.
@@ -291,6 +380,10 @@ With Tier 3/4 out, v1's world is 8 cities (§4) and 9 commodities (§5, all but 
   6. Bank, rank, default flows
   7. Tax + CA year-end
   8. UI screens 1–8 with placeholder art
-  9. Playtest build → deploy to Vercel/Netlify
-- **First prompt to Claude Code:** *"Read trade-winds-design-doc.md fully. Scaffold the Vite+React+TS project with the /src/engine and /src/ui split described in §14. Then implement §5–§6 (commodities, price engine) with config.ts and unit tests. Do not build any UI yet."*
+  9. Playtest build → deploy to Vercel/Netlify (v1 core loop ships here)
+  10. Re-run the §11 bot harness against v1 as a locked baseline, then build Warehouse storage (§14)
+  11. Hotel ownership (§15)
+  12. Aviation leasing (§16)
+  13. Re-run the §11 bot harness with §14–§16 included and re-tune their ⚙ numbers before shipping — these are net new sources of net worth and must not be assumed by the original day-10/30/90 targets
+- **First prompt to Claude Code:** *"Read trade-winds-design-doc.md fully. Scaffold the Vite+React+TS project with the /src/engine and /src/ui split described in §17. Then implement §5–§6 (commodities, price engine) with config.ts and unit tests. Do not build any UI yet."*
 - Keep this doc in the repo root. When a design decision changes during development, update the doc in the same commit.
