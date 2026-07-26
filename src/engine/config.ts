@@ -154,7 +154,7 @@ export const CARGO = {
    * cargo upgrades, a gap outside config.ts's reach (T029 may only edit this
    * file, per §17/TASK.md).
    */
-  startingCapacity: 1490,
+  startingCapacity: 1499,
   /** §2: fixed, ordered upgrade path — must be purchased in order (T011). */
   upgrades: [
     { capacity: 100, cost: 2_500 },
@@ -240,9 +240,9 @@ export const PRICE_ENGINE = {
    * config.ts-only balance pass — see the T029 report for full detail).
    */
   cityModifierRanges: {
-    producer: { min: 0.74, max: 0.84 },
+    producer: { min: 0.735, max: 0.835 },
     neutral: { min: 0.9, max: 1.1 },
-    consumer: { min: 1.12, max: 1.31 },
+    consumer: { min: 1.12, max: 1.32 },
   },
 
   /** §6: mean reversion — "if price > 2.2x or < 0.45x base×cityMod, pull
@@ -300,6 +300,41 @@ export const EVENTS = {
    * pass to tune.
    */
   eventFireProbability: 0.6,
+
+  /**
+   * T029 ADDITION — closes a wiring gap discovered during the balance pass:
+   * nothing in the engine (turnLoop.ts's `advanceDay`, the daily tick every
+   * bot/action funnels through) ever called `scheduleEvent`
+   * (events/eventEngine.ts, T016) during normal play. `scheduleEvent` itself
+   * was fully built and tested in isolation (T016), and `resolveDueEvents`/
+   * `getActiveEventEffectsFor` (T017) were fully wired to CONSUME
+   * `state.activeEvents` — but nothing ever PRODUCED an entry for a fresh
+   * game to consume, so `state.activeEvents` stayed permanently `[]` for
+   * every bot/harness run to date. Confirmed via grep: `scheduleEvent`'s only
+   * callers before this fix were its own test file and `informant.ts`'s
+   * purchased-tip path (T020) — neither runs during ordinary bot play. This
+   * silently broke THREE things at once: (a) newsBotStep's whole rumor-
+   * reading strategy (T027) never had a real signal to act on, permanently
+   * falling back to its weak baseline buy; (b) the newspaper's bucket-2
+   * "scheduled-event rumor" stories (T018) could never appear; (c) real
+   * price-moving events (§7's whole event table) never fired for ANY bot,
+   * so the price engine's `eventMultiplier` term (§6) was dead code in
+   * practice. `advanceDay` (turnLoop.ts) now rolls this probability once per
+   * day (via its own dedicated per-day RNG stream, same pattern as
+   * `createDayRng`/`createEventResolutionRng`) and calls `scheduleEvent` when
+   * it hits — turning the event/newspaper/rumor system into something that
+   * actually runs during play, matching §7 pipeline step 1's "engine
+   * schedules an event 2-4 days in the future" read as an ONGOING process,
+   * not a one-time capability that nothing ever invoked. 0.5/day (~1 new
+   * event every 2 days) was chosen empirically against the T028 harness so
+   * that: enough events are usually in flight for newsBotStep to find an
+   * actionable wire/gossip signal on most days (closing gap (a) above),
+   * while not saturating the price engine with so many simultaneous
+   * multipliers that greedy/random bots' already-tuned targets blow past
+   * their §11 ceilings (re-verified together with `cityModifierRanges` and
+   * `CARGO.startingCapacity` below after this change).
+   */
+  dailySchedulingProbability: 0.5,
 
   /** §7 "Insider information" — Informant tips. */
   insider: {

@@ -255,6 +255,7 @@ import { accrueDepositInterest } from './bank/deposits'
 import { accrueLoanInterest } from './bank/loans'
 import { checkRestructureRecheck, updateDefaultTrigger } from './bank/default'
 import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
+import { scheduleEvent } from './events/eventEngine'
 import { accrueTaxDebtInterest, runYearEnd } from './tax'
 import type { GameState, GoodId, PriceState } from './types'
 
@@ -285,6 +286,15 @@ function createEventResolutionRng(seed: number, day: number) {
   return createRng(hashStringToUint32(`${seed}:turnLoopEventResolution:${day}`))
 }
 
+/** Fresh `Rng` for T029's daily event-SCHEDULING roll (whether a new event
+ * gets created today at all, and if so its type/scope/goods/multiplier/
+ * duration/hidden-truth draws) — a stream independent of both
+ * `createDayRng` and `createEventResolutionRng`. See config.ts's
+ * `dailySchedulingProbability` doc comment for why this call exists. */
+function createEventSchedulingRng(seed: number, day: number) {
+  return createRng(hashStringToUint32(`${seed}:turnLoopEventScheduling:${day}`))
+}
+
 /**
  * Advances the game by exactly one day:
  *   1. Increments `state.day`.
@@ -309,7 +319,18 @@ export function advanceDay(state: GameState): GameState {
   // below — see file header. `resolveDueEvents` checks `scheduledFireDay ===
   // state.day`, so the state passed in must already carry `day: newDay`.
   const eventResolutionRng = createEventResolutionRng(state.seed, newDay)
-  const { state: stateAfterEvents, resolutions } = resolveDueEvents({ ...state, day: newDay }, eventResolutionRng)
+  const { state: stateAfterResolution, resolutions } = resolveDueEvents({ ...state, day: newDay }, eventResolutionRng)
+
+  // T029: roll whether a NEW event gets scheduled today (see config.ts's
+  // `dailySchedulingProbability` doc comment for why this call exists at
+  // all — closes a gap where nothing ever produced events for
+  // resolveDueEvents/getActiveEventEffectsFor to consume). Uses its own
+  // independent per-day RNG stream, same pattern as the two streams above.
+  const eventSchedulingRng = createEventSchedulingRng(state.seed, newDay)
+  const stateAfterEvents =
+    eventSchedulingRng.next() < CONFIG.events.dailySchedulingProbability
+      ? scheduleEvent(stateAfterResolution, eventSchedulingRng).updatedState
+      : stateAfterResolution
 
   // Only refresh the "physically present" city's staleness fields when the
   // player isn't mid-travel — see file header for why this extra condition
