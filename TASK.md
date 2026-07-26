@@ -71,7 +71,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `computePrice(city, good, day, rngState, activeEvents)` implements the full pipeline: base × cityModifier × trend (sine/random-walk, 20–40 day period, ±15% amplitude) × dailyNoise (per volatility class) × eventMultiplier × meanReversion. Hard floor 0.3× and ceiling 4× of (base×cityModifier) enforced last. Unit tests explicitly verify: (a) mean reversion pulls a price that's >2.2× base×cityMod back by ~10%/day, (b) same for <0.45×, (c) floor/ceiling are never violated across a randomized stress test of many days/seeds, (d) same seed reproduces identical price sequences. This is the price-engine task the doc calls out by name for required unit tests — do not skip them.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T009 — Net worth calculation + peak net worth tracking**
+- [x] **T009 — Net worth calculation + peak net worth tracking**
   - Doc references: §4 ("Cities unlock by net worth…"), §1 ("Score = peak net worth ever reached")
   - Dependencies: T002, T008
   - File path hints: `/src/engine/netWorth.ts`
@@ -92,14 +92,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: Starting capacity 40; `buyCargoUpgrade(state)` steps through the fixed tier list (100/$2,500 → 250/$12,000 → 600/$60,000 → 1,500/$300,000) in order, rejecting skip-ahead purchases or purchases when cash is insufficient. `cargoUsed(state)` sums units across all owned goods regardless of type (1 slot per unit, any good). Unit tests cover a full upgrade path and an insufficient-cash rejection.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T012 — Trade action (buy/sell, avg cost + FIFO cost-basis tracking)**
+- [x] **T012 — Trade action (buy/sell, avg cost + FIFO cost-basis tracking)**
   - Doc references: §2 (cargo unit model), §10 (realized profit FIFO — forward reference, needed later by T030)
   - Dependencies: T008, T011, T005, T006
   - File path hints: `/src/engine/actions/trade.ts`
   - Acceptance criteria: `buy(state, good, qty)` and `sell(state, good, qty)` validate cash/cargo/ownership limits, update cash, update per-good owned qty + running average buy cost (for UI display), and maintain a FIFO lot ledger per good (buy lots with qty+cost, consumed oldest-first on sell) so realized profit can later be computed exactly as "sell proceeds − matched buy costs, FIFO". Selling more than owned, or buying more than cargo capacity allows, is rejected with no state mutation. Also increments `state.cumulativeTradeVolume` (used later by rank, T021). Unit tests cover partial-lot FIFO consumption across multiple buys at different prices.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T013 — Travel action (fare calc, day advance, cargo lock, remote price staleness)**
+- [x] **T013 — Travel action (fare calc, day advance, cargo lock, remote price staleness)**
   - Doc references: §2 (Travel bullet), §4 (fare formula, distance matrix), §6 (information model — never leak live remote prices)
   - Dependencies: T007, T011, T005
   - File path hints: `/src/engine/actions/travel.ts`

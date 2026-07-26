@@ -99,6 +99,25 @@ function deriveSubSeed(seed: number, ...parts: string[]): number {
   return hashStringToUint32(`${seed}:${parts.join(':')}`)
 }
 
+/**
+ * Tiny memoization cache. The structurally-stable per-(seed, ...) picks
+ * below (cityModifier, trend period, trend phase) are pure functions of
+ * their inputs by design (see the architecture note at the top of this
+ * file), so caching them is a transparent performance optimization only —
+ * it changes nothing about determinism, just avoids re-running a fresh
+ * `createRng` + hash on every single day's `computePrice` call for values
+ * that never change across days for the same key. This matters in
+ * practice: the bot harness (T028) calls `computePrice` many thousands of
+ * times per run.
+ */
+function memoized<T>(cache: Map<string, T>, key: string, compute: () => T): T {
+  const cached = cache.get(key)
+  if (cached !== undefined) return cached
+  const value = compute()
+  cache.set(key, value)
+  return value
+}
+
 // ---------------------------------------------------------------------------
 // cityModifier (§6): role derivation + concrete multiplier resolution
 // ---------------------------------------------------------------------------
@@ -125,33 +144,47 @@ export interface ResolvedCityModifier {
   modifier: number
 }
 
+const cityModifierCache = new Map<string, ResolvedCityModifier>()
+
 /** Resolves the concrete, stable cityModifier for a (city, good) pair under
- * a given run `seed`. Deterministic and independent of call order. */
+ * a given run `seed`. Deterministic and independent of call order; cached
+ * per (seed, city, good) since it never changes across days for the same
+ * triple. */
 export function resolveCityModifier(seed: number, city: City, good: Good): ResolvedCityModifier {
-  const role = deriveCityGoodRole(city, good)
-  const range = CONFIG.priceEngine.cityModifierRanges[role]
-  const localRng = createRng(deriveSubSeed(seed, 'cityModifier', city.id, good.id))
-  const modifier = range.min + localRng.next() * (range.max - range.min)
-  return { role, modifier }
+  return memoized(cityModifierCache, `${seed}:${city.id}:${good.id}`, () => {
+    const role = deriveCityGoodRole(city, good)
+    const range = CONFIG.priceEngine.cityModifierRanges[role]
+    const localRng = createRng(deriveSubSeed(seed, 'cityModifier', city.id, good.id))
+    const modifier = range.min + localRng.next() * (range.max - range.min)
+    return { role, modifier }
+  })
 }
 
 // ---------------------------------------------------------------------------
 // trend (§6): slow global sine wave, period 20-40 days, amplitude +-15%
 // ---------------------------------------------------------------------------
 
+const trendPeriodCache = new Map<string, number>()
+
 /** Resolves the good's trend period (20-40 days, §6), stable per (seed, good). */
 function resolveTrendPeriodDays(seed: number, good: Good): number {
-  const localRng = createRng(deriveSubSeed(seed, 'trendPeriod', good.id))
-  return localRng.int(CONFIG.priceEngine.trendPeriodMinDays, CONFIG.priceEngine.trendPeriodMaxDays)
+  return memoized(trendPeriodCache, `${seed}:${good.id}`, () => {
+    const localRng = createRng(deriveSubSeed(seed, 'trendPeriod', good.id))
+    return localRng.int(CONFIG.priceEngine.trendPeriodMinDays, CONFIG.priceEngine.trendPeriodMaxDays)
+  })
 }
+
+const trendPhaseCache = new Map<string, number>()
 
 /** Resolves the good's starting phase offset so different seeds don't all
  * start every good's trend at the same point in its cycle, stable per
  * (seed, good). Range is generous relative to the max period so the offset
  * can land anywhere in a cycle regardless of which period got picked. */
 function resolveTrendPhaseOffset(seed: number, good: Good): number {
-  const localRng = createRng(deriveSubSeed(seed, 'trendPhase', good.id))
-  return localRng.int(0, CONFIG.priceEngine.trendPeriodMaxDays - 1)
+  return memoized(trendPhaseCache, `${seed}:${good.id}`, () => {
+    const localRng = createRng(deriveSubSeed(seed, 'trendPhase', good.id))
+    return localRng.int(0, CONFIG.priceEngine.trendPeriodMaxDays - 1)
+  })
 }
 
 /** Pure trend-multiplier formula: 1 +- amplitude, sinusoidal over `period`
