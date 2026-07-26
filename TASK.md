@@ -43,14 +43,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 1 — Core World & Price Engine
 
-- [ ] **T005 — City data (Tier 1+2, 8 cities)**
+- [x] **T005 — City data (Tier 1+2, 8 cities)**
   - Doc references: §4, §13
   - Dependencies: T002, T003
   - File path hints: `/src/engine/data/cities.ts`
   - Acceptance criteria: Exactly 8 `City` records (Farrow, Saltmere, Copperfell, Millbrook, Port Vela, Ironvale, Silkden, Greyharbor) with tier, bankSize, hotelPerNight, produces[], wants[] matching §4's tables exactly. Tier 3/4 cities are NOT present but a code comment references §13 explaining why (config-driven exclusion, easy to re-add later). Unit test asserts array length is 8 and each city has a unique id.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T006 — Commodity/goods data (9 v1 goods)**
+- [x] **T006 — Commodity/goods data (9 v1 goods)**
   - Doc references: §5, §13
   - Dependencies: T002, T003
   - File path hints: `/src/engine/data/goods.ts`
@@ -85,7 +85,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `checkCityUnlocks(state)` unlocks Tier 2 cities at net worth ≥ $25,000 (Tier 1 unlocked from game start). `checkGoodUnlocks(state)` gates Salt/Textiles behind "Tier 1 reached AND day ≥ 5", and Spices/Fuel/Steel/Silk behind Tier 2 city unlock; `buyLicense(state, good)` deducts the license fee once and marks the good tradeable. Unit tests: a fresh-game state has only Grain/Cotton/Iron unlocked and only Tier 1 cities; simulating net worth crossing $25,000 unlocks Tier 2; buying a license before its prerequisite is met is rejected.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T011 — Cargo capacity and upgrade purchase**
+- [x] **T011 — Cargo capacity and upgrade purchase**
   - Doc references: §2 (cargo capacity paragraph, cargo unit model)
   - Dependencies: T002, T003
   - File path hints: `/src/engine/cargo.ts`
