@@ -11,7 +11,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 0 — Foundation
 
-- [ ] **T001 — Scaffold Vite+React+TS project with engine/ui split**
+- [x] **T001 — Scaffold Vite+React+TS project with engine/ui split**
   - Doc references: §17
   - Dependencies: none
   - File path hints: repo root (`vite.config.ts`, `tsconfig.json`, `package.json`), `/src/engine/`, `/src/ui/`
