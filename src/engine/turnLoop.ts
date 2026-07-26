@@ -206,15 +206,15 @@
  * independent of the other.
  *
  * `resolveDueEvents`'s second return value (`resolutions:
- * EventResolution[]`) is intentionally NOT threaded any further by this
- * file — `GameState` has no field yet to hold "pending resolution stories"
- * (that lands with T018's newspaper engine, which is expected to either
- * call `resolveDueEvents` itself or have `advanceDay` extended to surface
- * it once a home for it exists on `GameState`). Discarding it here is safe:
- * the only durable, game-state-visible effect of a resolution — the
- * resolved `Event` (with `resolved`/`fired`/`resolvedDurationDays`/
- * `activeUntilDay`/`resolvedMultiplier` set) — is already persisted via
- * `state.activeEvents`, which IS threaded through.
+ * EventResolution[]`) is, as of T018, APPENDED onto `state.pendingResolutions`
+ * every day (see `types.ts`'s field doc for the full rationale) rather than
+ * discarded — `newspaper.ts`'s `generateDailyPaper` is the sole consumer,
+ * draining whatever became ready (resolved on some PRIOR day, per the
+ * required "next day's paper" lag) on each call. This file's ONLY job here
+ * is to append; it never removes/drains entries itself (draining is
+ * `generateDailyPaper`'s job) and never inspects the array otherwise. The
+ * previously-discarded durable effect on `state.activeEvents` is unchanged
+ * and still threaded through exactly as before.
  *
  * ---------------------------------------------------------------------------
  * Integration with Stay/Travel (T013/T014) — option (a): funnel through
@@ -297,7 +297,7 @@ export function advanceDay(state: GameState): GameState {
   // below — see file header. `resolveDueEvents` checks `scheduledFireDay ===
   // state.day`, so the state passed in must already carry `day: newDay`.
   const eventResolutionRng = createEventResolutionRng(state.seed, newDay)
-  const { state: stateAfterEvents } = resolveDueEvents({ ...state, day: newDay }, eventResolutionRng)
+  const { state: stateAfterEvents, resolutions } = resolveDueEvents({ ...state, day: newDay }, eventResolutionRng)
 
   // Only refresh the "physically present" city's staleness fields when the
   // player isn't mid-travel — see file header for why this extra condition
@@ -332,10 +332,18 @@ export function advanceDay(state: GameState): GameState {
     newPriceStates[city.id] = cityPriceStates
   }
 
+  // T018: append today's resolutions (if any) onto the pending-resolutions
+  // queue for `newspaper.ts`'s `generateDailyPaper` to drain later — see
+  // types.ts's `pendingResolutions` field doc and the file header above.
+  // `?? []` guards fixtures/older states that predate this field.
   const advanced: GameState = {
     ...stateAfterEvents,
     day: newDay,
     priceStates: newPriceStates,
+    pendingResolutions:
+      resolutions.length === 0
+        ? (stateAfterEvents.pendingResolutions ?? [])
+        : [...(stateAfterEvents.pendingResolutions ?? []), ...resolutions],
   }
 
   return updatePeakNetWorth(advanced)

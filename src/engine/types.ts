@@ -190,6 +190,20 @@ export interface Event {
    * `PriceEventEffect.multiplier` (§6's `eventMultiplier` term). Only set
    * when `fired === true`. */
   resolvedMultiplier?: number
+
+  // -------------------------------------------------------------------------
+  // T018 addition (optional — backward compatible with T016/T017, neither of
+  // which ever sets this; only newspaper.ts sets it). See newspaper.ts's file
+  // header for the full rationale.
+  // -------------------------------------------------------------------------
+
+  /** True once a scheduled-event rumor story (§7 pipeline step 2) has been
+   * printed for this event in some past day's paper. Prevents
+   * `generateDailyPaper` from re-announcing the same not-yet-due event every
+   * single day — each event gets at most one rumor story before it either
+   * fires or fizzles. Never set for resolution stories (those are tracked
+   * separately via `GameState.pendingResolutions`, not this flag). */
+  rumorAnnounced?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -356,6 +370,32 @@ export interface GameState {
   activeEvents: Event[]
   /** Today's newspaper stories (§7/§12 screen 4). */
   currentNewspaper: NewspaperStory[]
+
+  /**
+   * T018 addition — optional, backward compatible with every earlier task's
+   * `GameState` fixtures (none of which set it; treated as `[]` wherever
+   * read). Holds every resolved event (§7 step 4-5's raw material, in the
+   * exact shape T017's `events/resolution.ts` calls `EventResolution` —
+   * `{ event: Event; fired: boolean }`, duplicated structurally here rather
+   * than imported, to avoid a circular type-only import between this file
+   * and `events/resolution.ts`, which itself imports several types FROM
+   * `types.ts`) that has not yet produced a resolution-story `NewspaperStory`.
+   *
+   * `turnLoop.ts`'s `advanceDay` APPENDS every event it resolves each day
+   * (via `resolveDueEvents`, T017) onto this array. `newspaper.ts`'s
+   * `generateDailyPaper` (T018) is the sole consumer: on each call it removes
+   * (and turns into a resolution story) every entry whose
+   * `event.scheduledFireDay < state.day` — i.e. resolved on some PRIOR day —
+   * while leaving behind anything resolved on `state.day` itself for the
+   * NEXT day's paper, per §7 step 5's "the next day's paper always runs a
+   * resolution story" (never same-day). This guarantees the required exact
+   * 1:1 correspondence between resolved events and resolution stories, with
+   * no event ever missed even if `generateDailyPaper` isn't called on every
+   * single day (multi-day travel, tests, etc.) — entries simply accumulate
+   * until the next call, at which point every one of them is finally ready
+   * (`scheduledFireDay < state.day` will be true for all of them by then).
+   */
+  pendingResolutions?: Array<{ event: Event; fired: boolean }>
 
   /** One record per completed fiscal year (§10). */
   taxHistory: TaxRecord[]

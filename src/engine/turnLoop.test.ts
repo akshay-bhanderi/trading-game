@@ -7,7 +7,7 @@ import { buy, sell } from './actions/trade'
 import { advanceTravelDay, travel } from './actions/travel'
 import { stay } from './actions/stay'
 import { createRng } from './rng'
-import type { GameState } from './types'
+import type { Event, GameState } from './types'
 
 /**
  * Builds a minimal-but-valid `GameState`, following the same pattern as
@@ -136,6 +136,44 @@ describe('advanceDay', () => {
     const withMoreCash = { ...result, cash: 5_000 }
     const result2 = advanceDay(withMoreCash)
     expect(result2.peakNetWorth).toBe(5_000)
+  })
+
+  // ---------------------------------------------------------------------
+  // T018 addition (additive only — does not modify/weaken any test above):
+  // `advanceDay` now appends `resolveDueEvents`'s resolutions onto
+  // `state.pendingResolutions` instead of discarding them (see this file's
+  // updated header comment and types.ts's `pendingResolutions` field doc).
+  // ---------------------------------------------------------------------
+  it('T018: appends resolved events onto pendingResolutions instead of discarding them', () => {
+    const dueEvent: Event = {
+      id: 'evt-due-1',
+      typeId: 'mineCollapse',
+      affectedGoodIds: ['iron'],
+      scope: { kind: 'global' },
+      multiplierMin: 1.5,
+      multiplierMax: 2.5,
+      durationDaysMin: 4,
+      durationDaysMax: 7,
+      hiddenTruth: true,
+      scheduledFireDay: 2,
+      createdOnDay: 1,
+      resolved: false,
+      fired: null,
+    }
+    const state = makeState({ day: 1, activeEvents: [dueEvent] })
+
+    const result = advanceDay(state)
+
+    expect(result.day).toBe(2)
+    expect(result.pendingResolutions).toHaveLength(1)
+    expect(result.pendingResolutions?.[0]?.event.id).toBe('evt-due-1')
+    expect(result.pendingResolutions?.[0]?.fired).toBe(true)
+
+    // A day with nothing due leaves pendingResolutions untouched (still
+    // holding the earlier entry — draining is newspaper.ts's job, not
+    // advanceDay's).
+    const result2 = advanceDay(result)
+    expect(result2.pendingResolutions).toHaveLength(1)
   })
 
   it('is deterministic: replaying the same seed from the same starting state produces identical prices after many days', () => {

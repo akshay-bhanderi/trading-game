@@ -138,7 +138,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: On an event's due date, `resolveEvent(state, rng)` decides fire-vs-fizzle based on the event's hidden truth flag and applies the correct price multiplier (feeding T008's `eventMultiplier` term) for its duration if fired; does nothing to prices if fizzled. A resolution record is stored for next-day newspaper consumption (T018). Unit test: a "fired" event measurably shifts the affected good's price relative to a control run with the event disabled; a "fizzled" event does not.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T018 — Newspaper generation pipeline (rumors, filler, false rumors, source styles, resolution stories, unlock headlines)**
+- [x] **T018 — Newspaper generation pipeline (rumors, filler, false rumors, source styles, resolution stories, unlock headlines)**
   - Doc references: §7 (pipeline, resolution-story requirement), §4 (city-unlock headline)
   - Dependencies: T016, T017, T010
   - File path hints: `/src/engine/newspaper.ts`
