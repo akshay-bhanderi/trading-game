@@ -121,6 +121,8 @@ import { CONFIG } from './config'
 import { CITIES } from './data/cities'
 import { GOODS } from './data/goods'
 import { EVENT_TABLE } from './events/eventTable'
+import { describeRumorSubject } from './fogOfWealth'
+import { calcNetWorth } from './netWorth'
 import type { Rng } from './rng'
 import type { CityId, Event, EventScope, GameState, GoodId, NewsSourceStyle, NewspaperStory } from './types'
 
@@ -340,18 +342,32 @@ function buildUnlockStory(cityId: CityId, state: GameState): NewspaperStory {
  * itself). */
 function buildRumorStory(event: Event, rng: Rng, state: GameState, index: number): NewspaperStory {
   const def = EVENT_TABLE[event.typeId]
-  const goods = goodNames(event.affectedGoodIds)
   const scopeDesc = describeScope(event.scope)
   const sourceStyle: NewsSourceStyle = rng.next() < 0.5 ? 'wire' : 'gossip'
   const sourceLabel = sourceStyle === 'wire' ? 'Wire report' : 'Bazaar gossip'
   const whereClause = scopeDesc ? ` near ${scopeDesc}` : ''
-  const goodsClause = goods || 'trade'
+
+  // T019 (§7 "Fog of wealth"): the body's subject description (which good(s)
+  // and how precisely the location is named) fogs as the player's net worth
+  // grows — see fogOfWealth.ts for the three-band rule. Deliberately scoped
+  // to the BODY only, matching this file's existing `describeScope` doc
+  // comment ("fog-of-wealth-style vagueness proper is T019's job; this is
+  // just a reasonable default phrasing") — the headline's own `whereClause`
+  // is left as-is (unchanged from T018) to keep this an additive, minimal
+  // edit rather than a rework of the story's overall shape.
+  const subject = describeRumorSubject({
+    cityId: event.scope.kind === 'city' ? event.scope.cityId : undefined,
+    goodIds: event.affectedGoodIds,
+    netWorth: calcNetWorth(state),
+    rng,
+  })
+  const bodySubject = subject.charAt(0).toLowerCase() + subject.slice(1)
 
   return {
     id: `story-d${state.day}-rumor-${event.id}-${index}`,
     day: state.day,
     headline: `${sourceLabel}: whispers of ${def.label.toLowerCase()}${whereClause}`,
-    body: `Word is spreading of possible trouble affecting ${goodsClause}${whereClause}. Nothing is confirmed yet — canny traders are watching prices closely.`,
+    body: `Word is spreading: ${bodySubject}. Nothing is confirmed yet — canny traders are watching prices closely.`,
     sourceStyle,
     relatedEventId: event.id,
     isResolution: false,
@@ -368,11 +384,22 @@ function buildFalseRumorStory(rng: Rng, state: GameState, index: number): Newspa
   const sourceStyle: NewsSourceStyle = rng.next() < 0.5 ? 'wire' : 'gossip'
   const sourceLabel = sourceStyle === 'wire' ? 'Wire report' : 'Bazaar gossip'
 
+  // T019: same body-only fogging as buildRumorStory above — see its comment.
+  // Headline keeps naming the exact good+city (unchanged from T018); only
+  // the body's subject description is net-worth-gated.
+  const subject = describeRumorSubject({
+    cityId: city.id,
+    goodIds: [good.id],
+    netWorth: calcNetWorth(state),
+    rng,
+  })
+  const bodySubject = subject.charAt(0).toLowerCase() + subject.slice(1)
+
   return {
     id: `story-d${state.day}-falserumor-${index}-${uniqueSuffix(rng)}`,
     day: state.day,
     headline: `${sourceLabel}: ${good.name} in ${city.name} ${direction}`,
-    body: `Unconfirmed talk around ${city.name} suggests ${good.name} prices could move sharply soon. No official word yet.`,
+    body: `Unconfirmed talk suggests ${bodySubject}. No official word yet.`,
     sourceStyle,
     relatedEventId: null,
     isResolution: false,
