@@ -137,13 +137,15 @@
  * consistency, and still resets the fiscal-year accumulators — the waiver
  * only forgives the BILL, not the bookkeeping. Every later year-end
  * (`fiscalYear >= 2`), even on Noob, taxes normally. NOTE: the waiver is
- * SPECIFICALLY a tax waiver — §14's warehouse maintenance bill (see the T049
- * addition immediately below) is a completely separate obligation and is
- * NEVER waived, including in a Noob's first year.
+ * SPECIFICALLY a tax waiver — §14's warehouse maintenance bill and §15's
+ * hotel license fee (see the T049/T050 and T057 additions below) are
+ * completely separate obligations and are NEVER waived, including in a
+ * Noob's first year.
  *
  * ---------------------------------------------------------------------------
  * T049/T050 addition — warehouse maintenance + insurance billed at the SAME
- * year-end tick, AFTER tax, into a SEPARATE Small-rate debt bucket
+ * year-end tick, AFTER tax (and, per the T057 addition below, after the
+ * hotel license fee too), into a SEPARATE Small-rate debt bucket
  * ---------------------------------------------------------------------------
  * §14: "Maintenance across every owned warehouse/floor bills at year-end
  * alongside tax... unpaid maintenance accrues as Small-bank-rate debt
@@ -160,19 +162,66 @@
  * mirroring warehouse.ts's own "compute here, deduct in tax.ts" split.
  *
  * ORDERING JUDGMENT CALL: the warehouse bill is deducted from whatever cash
- * and deposits remain AFTER tax's own deduction above, rather than the two
- * bills being combined into one pool and split proportionally on shortfall.
- * §14 doesn't specify an order, and combining-then-splitting would need an
- * arbitrary proration rule with no basis in the doc. Deducting tax first
- * (unchanged from every earlier task's behavior) and then warehouse
- * maintenance out of the remainder is the simpler, more conservative choice
- * — it also means this addition is PURELY ADDITIVE: every existing tax
- * deduction/`TaxRecord` field/`taxDebt` behavior above is completely
- * untouched by this section.
+ * and deposits remain AFTER tax's (and, following the merge of Phase 11,
+ * the hotel license fee's) own deduction above, rather than combining every
+ * bill into one pool and splitting proportionally on shortfall. Neither §14
+ * nor §15 specifies a cross-bill order, and combining-then-splitting would
+ * need an arbitrary proration rule with no basis in either doc. Deducting
+ * tax first (unchanged from every earlier task's behavior), then the hotel
+ * license fee, then warehouse maintenance out of whatever remains, is the
+ * simpler, more conservative choice — each later addition is PURELY
+ * ADDITIVE on top of the one before it.
+ *
+ * ---------------------------------------------------------------------------
+ * T057 addition (§15 Hotel Ownership) — hotel annual license fee billing
+ * ---------------------------------------------------------------------------
+ * §15: "Annual license fee bills at the same year-end cadence as CA fees and
+ * warehouse maintenance." `runYearEnd` now ALSO deducts, in a SECOND
+ * sequential pass immediately after the existing tax deduction (steps 3a/3b
+ * above), the total annual license fee owed across every hotel the player
+ * currently owns (`computeHotelLicenseFeeOwed`, /src/engine/hotel.ts) —
+ * continuing to drain from whatever cash/deposits the tax deduction left
+ * behind, using the exact same cash-first-then-deposits cascade.
+ *
+ * Two deliberate design choices, both documented judgment calls since
+ * neither §15 nor TASK.md's T057 acceptance criteria specify them exactly:
+ *
+ *   1. SEQUENTIAL, not combined, deduction passes. Tax is fully resolved
+ *      first (unchanged math, unchanged `TaxRecord.taxPaid` semantics), THEN
+ *      the hotel fee is deducted from whatever remains. This keeps each
+ *      obligation's own "how much was actually paid vs. shortfalled" cleanly
+ *      separable (`TaxRecord` now carries `hotelLicenseFeesPaid` as a
+ *      distinct field from `taxPaid` — see types.ts) rather than needing to
+ *      prorate a single combined shortfall back across two conceptually
+ *      different bills.
+ *   2. The hotel-fee shortfall (if cash+deposits still can't cover it after
+ *      tax already took its share) rolls into the SAME `state.taxDebt`
+ *      bucket the tax shortfall uses, rather than a separate hotel-specific
+ *      debt field. §15 gives hotel license fees no explicit "what happens if
+ *      you can't pay" rule the way §9's Default flow or this file's own tax
+ *      shortfall get one — but conceptually it's the exact same shape
+ *      (forced obligation, cash/deposits insufficient, becomes an
+ *      interest-accruing debt) and `taxDebt`'s own accrual/repayment
+ *      machinery (`accrueTaxDebtInterest`/`repayTaxDebt` below) already
+ *      exists and needs no changes to also carry this. `taxDebt` is
+ *      effectively widened in meaning from "forced TAX-shortfall debt" to
+ *      "forced GOVERNMENT-OBLIGATIONS-shortfall debt" (tax + hotel license
+ *      fees) — documented here explicitly rather than silently. Building a
+ *      whole parallel debt bucket (new field, new accrual function, new
+ *      repayment function, all identical to the existing ones) for a single
+ *      extra fee source would be pure duplication with no behavioral
+ *      benefit.
+ *
+ * The Noob first-tax-year waiver (see above) does NOT extend to the hotel
+ * license fee — §3's waiver text is specifically about "First tax year",
+ * i.e. the 30%-of-profit tax bill, and §15 gives no indication hotel
+ * ownership gets any equivalent grace period. A Noob player who owns a
+ * hotel by their first year-end still owes its full license fee that year.
  */
 
 import { CONFIG } from './config'
 import { calcWarehouseAnnualBill } from './warehouse'
+import { computeHotelLicenseFeeOwed } from './hotel'
 import type { BankAccount, CATier, CityId, GameState, TaxRecord } from './types'
 
 /**
@@ -211,16 +260,25 @@ function computeTaxOwed(taxableBase: number, tier: CATier): number {
  *      every source is drained to exactly `0`.
  *   4. Any remaining shortfall becomes (or tops up) `state.taxDebt` — see
  *      file header for why this is a dedicated field rather than a `Loan`.
- *   5. Appends a `TaxRecord` to `state.taxHistory`.
- *   6. Resets `realizedProfitThisFiscalYear`/`depositInterestThisFiscalYear`
+ *   5. (T057) Runs the SAME cash-then-deposits deduction again, continuing
+ *      from wherever step 3 left off, for the total hotel annual license fee
+ *      owed across every owned hotel (`computeHotelLicenseFeeOwed`,
+ *      hotel.ts) — any shortfall here ALSO tops up `state.taxDebt` (see file
+ *      header's T057 addition for why the two obligations share one debt
+ *      bucket).
+ *   6. Appends a `TaxRecord` to `state.taxHistory`, with `taxPaid` and the
+ *      new `hotelLicenseFeesPaid` field tracked separately even though both
+ *      were deducted through the same cascade.
+ *   7. (T049/T050) Runs the SAME cash-then-deposits deduction a THIRD time,
+ *      continuing from wherever step 5 left off, for
+ *      `calcWarehouseAnnualBill(state)` (warehouse floor maintenance + fire-
+ *      insurance premiums) — any shortfall here tops up the SEPARATE,
+ *      Small-rate `state.warehouseMaintenanceDebt` bucket instead of
+ *      `state.taxDebt` (see file header). Never waived, including for Noob's
+ *      first-year tax waiver.
+ *   8. Resets `realizedProfitThisFiscalYear`/`depositInterestThisFiscalYear`
  *      to `0` for the new fiscal year, regardless of whether tax was
  *      actually charged.
- *   7. (T049/T050) Bills `calcWarehouseAnnualBill(state)` (warehouse floor
- *      maintenance + insurance premiums) from whatever cash/deposits remain
- *      after step 3 — same cash-then-deposits deduction order, same
- *      `Object.keys` iteration — with any shortfall becoming/topping up the
- *      SEPARATE, Small-rate `state.warehouseMaintenanceDebt` bucket. Never
- *      waived (see file header).
  *
  * Pure function: returns a NEW `GameState`; never mutates its argument.
  */
@@ -240,41 +298,70 @@ export function runYearEnd(state: GameState): GameState {
 
   const taxOwed = isNoobFirstYearWaiver ? 0 : computeTaxOwed(taxableBase, caTierActive)
 
-  // Step 3a: deduct from cash first.
-  let remaining = taxOwed
-  const cashPayment = Math.min(state.cash, remaining)
-  const newCash = state.cash - cashPayment
-  remaining -= cashPayment
+  // Step 3a: deduct tax from cash first.
+  let taxRemaining = taxOwed
+  const taxCashPayment = Math.min(state.cash, taxRemaining)
+  const cashAfterTax = state.cash - taxCashPayment
+  taxRemaining -= taxCashPayment
 
   // Step 3b: deduct any remainder from deposits, city by city, in
   // `Object.keys` order (see file header).
-  const newBankAccounts: Record<CityId, BankAccount> = { ...state.bankAccounts }
-  if (remaining > 0) {
+  const bankAccountsAfterTax: Record<CityId, BankAccount> = { ...state.bankAccounts }
+  if (taxRemaining > 0) {
     for (const cityId of Object.keys(state.bankAccounts)) {
-      if (remaining <= 0) break
+      if (taxRemaining <= 0) break
       const account = state.bankAccounts[cityId]
       if (!account || account.depositBalance <= 0) continue
 
-      const depositPayment = Math.min(account.depositBalance, remaining)
-      newBankAccounts[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
-      remaining -= depositPayment
+      const depositPayment = Math.min(account.depositBalance, taxRemaining)
+      bankAccountsAfterTax[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
+      taxRemaining -= depositPayment
     }
   }
 
-  // Step 4: whatever's still unpaid becomes/extends the forced tax debt.
-  const shortfall = remaining
-  const forcedLoanTriggered = shortfall > 0
+  const taxShortfall = taxRemaining
+  const taxPaid = taxOwed - taxShortfall
+
+  // ---------------------------------------------------------------------
+  // T057: hotel annual license fee — a SECOND, sequential deduction pass
+  // continuing from `cashAfterTax`/`bankAccountsAfterTax` (see file header).
+  // ---------------------------------------------------------------------
+  const hotelLicenseFeeOwed = computeHotelLicenseFeeOwed(state)
+
+  let hotelFeeRemaining = hotelLicenseFeeOwed
+  const hotelFeeCashPayment = Math.min(cashAfterTax, hotelFeeRemaining)
+  const cashAfterHotelFee = cashAfterTax - hotelFeeCashPayment
+  hotelFeeRemaining -= hotelFeeCashPayment
+
+  const bankAccountsAfterHotelFee: Record<CityId, BankAccount> = { ...bankAccountsAfterTax }
+  if (hotelFeeRemaining > 0) {
+    for (const cityId of Object.keys(bankAccountsAfterTax)) {
+      if (hotelFeeRemaining <= 0) break
+      const account = bankAccountsAfterTax[cityId]
+      if (!account || account.depositBalance <= 0) continue
+
+      const depositPayment = Math.min(account.depositBalance, hotelFeeRemaining)
+      bankAccountsAfterHotelFee[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
+      hotelFeeRemaining -= depositPayment
+    }
+  }
+
+  const hotelFeeShortfall = hotelFeeRemaining
+  const hotelLicenseFeesPaid = hotelLicenseFeeOwed - hotelFeeShortfall
+
+  // Step 4/5: whatever's still unpaid across EITHER obligation becomes/
+  // extends the forced debt (widened bucket — see file header's T057 note).
+  const totalShortfall = taxShortfall + hotelFeeShortfall
+  const forcedLoanTriggered = totalShortfall > 0
 
   let newTaxDebt = state.taxDebt ?? null
   if (forcedLoanTriggered) {
     newTaxDebt = {
-      principal: (newTaxDebt?.principal ?? 0) + shortfall,
+      principal: (newTaxDebt?.principal ?? 0) + totalShortfall,
       accruedInterest: newTaxDebt?.accruedInterest ?? 0,
       startDay: newTaxDebt?.startDay ?? state.day,
     }
   }
-
-  const taxPaid = taxOwed - shortfall
 
   const record: TaxRecord = {
     fiscalYear,
@@ -284,28 +371,30 @@ export function runYearEnd(state: GameState): GameState {
     taxPaid,
     caTierActive,
     forcedLoanTriggered,
+    hotelLicenseFeesPaid,
   }
 
   // ---------------------------------------------------------------------
-  // T049/T050: warehouse maintenance + insurance, billed from whatever
-  // cash/deposits remain AFTER the tax deduction above — see file header's
-  // "T049/T050 addition" section for the full ordering rationale. Uses the
-  // exact same cash-then-deposits-then-forced-debt mechanism as tax itself,
-  // just against a SEPARATE Small-rate debt bucket
+  // T049/T050: warehouse maintenance + insurance — a THIRD, sequential
+  // deduction pass continuing from `cashAfterHotelFee`/
+  // `bankAccountsAfterHotelFee` (see file header's "T049/T050 addition"
+  // section for the full ordering rationale). Uses the exact same
+  // cash-then-deposits-then-forced-debt mechanism as tax/hotel above, just
+  // against a SEPARATE Small-rate debt bucket
   // (`state.warehouseMaintenanceDebt`, never `state.taxDebt`).
   // ---------------------------------------------------------------------
   const warehouseBill = calcWarehouseAnnualBill(state)
 
   let warehouseRemaining = warehouseBill
-  const warehouseCashPayment = Math.min(newCash, warehouseRemaining)
-  const cashAfterWarehouseBill = newCash - warehouseCashPayment
+  const warehouseCashPayment = Math.min(cashAfterHotelFee, warehouseRemaining)
+  const cashAfterWarehouseBill = cashAfterHotelFee - warehouseCashPayment
   warehouseRemaining -= warehouseCashPayment
 
-  const bankAccountsAfterWarehouseBill: Record<CityId, BankAccount> = { ...newBankAccounts }
+  const bankAccountsAfterWarehouseBill: Record<CityId, BankAccount> = { ...bankAccountsAfterHotelFee }
   if (warehouseRemaining > 0) {
-    for (const cityId of Object.keys(newBankAccounts)) {
+    for (const cityId of Object.keys(bankAccountsAfterHotelFee)) {
       if (warehouseRemaining <= 0) break
-      const account = newBankAccounts[cityId]
+      const account = bankAccountsAfterHotelFee[cityId]
       if (!account || account.depositBalance <= 0) continue
 
       const depositPayment = Math.min(account.depositBalance, warehouseRemaining)

@@ -280,6 +280,7 @@ import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
 import { scheduleEvent } from './events/eventEngine'
 import { accrueTaxDebtInterest, runYearEnd } from './tax'
 import { accrueWarehouseMaintenanceDebtInterest, checkWarehouseFires } from './warehouse'
+import { accruePassiveHotelRevenue } from './hotel'
 import type { GameState, GoodId, PriceState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -465,6 +466,22 @@ export function advanceDay(state: GameState): GameState {
   const withDefaultFlow = checkRestructureRecheck(updateDefaultTrigger(withLoanInterest))
 
   // ---------------------------------------------------------------------
+  // T055 addition (§15 Hotel Ownership) — same additive-step pattern as
+  // T022-T024 above. Credits one day's passive revenue for EVERY owned
+  // hotel, regardless of `currentCity`/`travelInProgress` (§15: "accrues
+  // daily, whether you're in that city or not... keeps earning while you're
+  // on the road"), zeroing out any city currently epidemic-paused (T056).
+  // Runs against `withDefaultFlow` (already carrying `day: newDay` and
+  // today's fully-resolved `activeEvents` from `stateAfterEvents` above), so
+  // the epidemic-active check below sees TODAY's event state, not
+  // yesterday's. Order relative to the default-flow step immediately above
+  // doesn't matter (disjoint fields — `cash` here vs. debt-tracking fields
+  // there), so this simply runs next. See /src/engine/hotel.ts's file
+  // header for the full accrual/epidemic-pause rationale.
+  // ---------------------------------------------------------------------
+  const withHotelRevenue = accruePassiveHotelRevenue(withDefaultFlow)
+
+  // ---------------------------------------------------------------------
   // T030 addition (same additive-step pattern as T022-T024 above) — §10
   // "Tax & CA System". Two small, independent steps:
   //   1. `accrueTaxDebtInterest` (tax.ts) accrues one day of simple daily
@@ -489,7 +506,7 @@ export function advanceDay(state: GameState): GameState {
   //      the `taxDebt` representation decision, and the Noob first-year
   //      waiver).
   // ---------------------------------------------------------------------
-  const withTaxDebtInterest = accrueTaxDebtInterest(withDefaultFlow)
+  const withTaxDebtInterest = accrueTaxDebtInterest(withHotelRevenue)
 
   // ---------------------------------------------------------------------
   // T049 addition (same additive-step pattern as T022-T024/T030 above) —

@@ -35,6 +35,12 @@ export default function YearEndScreen({ record, onDismiss }: { record: TaxRecord
         <span>Tax paid</span>
         <strong>${record.taxPaid.toFixed(2)}</strong>
       </div>
+      {!!record.hotelLicenseFeesPaid && (
+        <div className="row">
+          <span>Hotel license fees</span>
+          <strong>${record.hotelLicenseFeesPaid.toFixed(2)}</strong>
+        </div>
+      )}
 
       {record.forcedLoanTriggered && (
         <p className="muted">

@@ -9,12 +9,14 @@ import WarehouseScreen from './screens/WarehouseScreen'
 import NewspaperScreen from './screens/NewspaperScreen'
 import YearEndScreen from './screens/YearEndScreen'
 import GameOverScreen from './screens/GameOverScreen'
+import RealEstateScreen from './screens/RealEstateScreen'
 import HubScene from './scene/HubScene'
 import Hud, { type PopupKind } from './components/Hud'
 import PopupLayer from './components/PopupLayer'
 import DayTransition from './components/DayTransition'
 import { CITIES } from '../engine/data/cities'
 import { cargoUsed } from '../engine/cargo'
+import { isHotelOwnedByPlayer } from '../engine/hotel'
 
 function cityName(cityId: string): string {
   return CITIES.find((c) => c.id === cityId)?.name ?? cityId
@@ -29,6 +31,7 @@ function App() {
   const stay = useGameStore((s) => s.stay)
   const save = useGameStore((s) => s.save)
   const justSaved = useGameStore((s) => s.justSaved)
+  const buildOrUpgradeHotel = useGameStore((s) => s.buildOrUpgradeHotel)
   const [popup, setPopup] = useState<PopupKind>(null)
 
   // Detects a day advancing (Stay) or the current city changing (Travel
@@ -131,6 +134,8 @@ function App() {
         onStay={() => stay()}
         onSave={() => save()}
         justSaved={justSaved}
+        currentCityHotelUnowned={!isHotelOwnedByPlayer(game, game.currentCity)}
+        onBuyHotelHere={() => buildOrUpgradeHotel(game.currentCity)}
       />
 
       {transition && <DayTransition key={transition.key} message={transition.message} variant={transition.variant} />}
@@ -167,6 +172,11 @@ function App() {
       {effectivePopup === 'warehouse' && (
         <PopupLayer title="Warehouse" onClose={() => setPopup(null)}>
           <WarehouseScreen />
+        </PopupLayer>
+      )}
+      {effectivePopup === 'realestate' && (
+        <PopupLayer title="Real Estate" onClose={() => setPopup(null)}>
+          <RealEstateScreen />
         </PopupLayer>
       )}
       {effectivePopup === 'yearend' && pendingYearEnd && (
