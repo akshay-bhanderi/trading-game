@@ -57,14 +57,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: Exactly 9 `Good` records (Grain, Cotton, Iron, Salt, Textiles, Spices, Fuel, Steel, Silk) with unlock condition, license fee, base price, volatility class, daily drift % matching §5's table. Electronics and Rare Metals are explicitly excluded, with a comment citing §13 as authoritative over the ambiguous "Rare Metals is one commodity in v1 scope" sentence in §5 (§13's OUT list and the "9 commodities, all but Electronics" + Kessler-gating logic together confirm Rare Metals is also out since its only source city, Kessler Mines, is Tier 3). Unit test asserts array length is 9.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T007 — Travel distance matrix and fare calculation**
+- [x] **T007 — Travel distance matrix and fare calculation**
   - Doc references: §4 (Travel subsection)
   - Dependencies: T005
   - File path hints: `/src/engine/travel.ts`, `/src/engine/travel.test.ts`
   - Acceptance criteria: A generated 8×8 (v1 scope) distance-in-days matrix follows the doc's rules (same tier cluster = 1 day, adjacent tier = 2 days; Tier1↔Tier3/4 and Frosthelm special rules are N/A in v1 and may be omitted/commented as out-of-scope). `calcFare(days, destinationTier, cargoUsedPct)` implements `$10 × days × (1 + tier×0.5)`, doubled if cargo > 60% capacity, reading the multiplier from `config.ts`. Unit tests cover a same-tier trip, a cross-tier trip, and the >60% cargo doubling case.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T008 — Price engine (formula, floors/ceilings, mean reversion) with unit tests**
+- [x] **T008 — Price engine (formula, floors/ceilings, mean reversion) with unit tests**
   - Doc references: §6
   - Dependencies: T004, T005, T006, T003
   - File path hints: `/src/engine/priceEngine.ts`, `/src/engine/priceEngine.test.ts`
@@ -106,7 +106,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `travel(state, destinationCityId)` computes fare via T007's `calcFare`, deducts cash, sets `state.currentCity` after the correct number of days elapse (multi-day travel produces a "days remaining" state the turn loop can advance), and marks all cities left behind as showing only their last-seen price + age (never a live computed price) until revisited. While traveling, trading is disallowed (enforced by returning/throwing if `travel action in progress`). Unit test: traveling 2 days leaves the origin city's prices frozen at last-seen values while the destination's price is fresh on arrival.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T014 — Stay action (hotel cost per city tier)**
+- [x] **T014 — Stay action (hotel cost per city tier)**
   - Doc references: §2 (Stay bullet), §4 (Hotel/night column)
   - Dependencies: T005, T002
   - File path hints: `/src/engine/actions/stay.ts`
