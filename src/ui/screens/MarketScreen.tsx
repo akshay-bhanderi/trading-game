@@ -4,6 +4,7 @@ import { cargoUsed } from '../../engine/cargo'
 import { GOODS } from '../../engine/data/goods'
 import type { GoodId } from '../../engine/types'
 import TradePanel from '../components/TradePanel'
+import CapacityBar from '../components/CapacityBar'
 
 export default function MarketScreen() {
   const game = useGameStore((s) => s.game)
@@ -46,6 +47,8 @@ export default function MarketScreen() {
 
   return (
     <div className="market-list">
+      <CapacityBar used={cargoUsed(game)} capacity={game.cargoCapacity} label="Cargo" />
+
       {tradeableGoods.map((good) => {
         const price = game.priceStates[game.currentCity]?.[good.id]?.currentPrice
         const holding = game.cargo[good.id]

@@ -400,6 +400,45 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------
+   Reusable capacity/fill meter (CapacityBar.tsx, T038) — shared visual
+   language with the Warehouse screen's later per-floor bars (§14, T052).
+   --------------------------------------------------------------------- */
+
+.capacity-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.capacity-bar-label {
+  flex-shrink: 0;
+  color: #6b6252;
+}
+
+.capacity-bar-track {
+  flex: 1;
+  height: 14px;
+  background: var(--paper-dark);
+  border: 2px solid var(--ink);
+  clip-path: var(--pixel-clip);
+  overflow: hidden;
+}
+
+.capacity-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s steps(6);
+}
+
+.capacity-bar-text {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #6b6252;
+}
+
+/* ---------------------------------------------------------------------
    Market: simple tap-to-trade list + drill-down trade panel
    --------------------------------------------------------------------- */
 
