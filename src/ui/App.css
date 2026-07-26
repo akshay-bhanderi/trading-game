@@ -906,3 +906,66 @@ button.secondary {
     opacity: 0;
   }
 }
+
+/* ---------------------------------------------------------------------
+   Warehouse screen (T052, §14) — vertical building elevation, one row per
+   floor, reusing the SAME .card/.row/.muted/.bank-amount-row primitives the
+   Bank screen already established, plus CapacityBar's existing
+   .capacity-bar styles (T038) for each built floor's own fill meter — see
+   §14's explicit "same bar-fill visual language as the Market screen's
+   cargo bar" requirement.
+   --------------------------------------------------------------------- */
+
+.warehouse-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.warehouse-elevation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warehouse-floor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 2px solid var(--wood);
+}
+
+.warehouse-floor--built {
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+.warehouse-floor--unbuilt {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.warehouse-floor-label {
+  flex-shrink: 0;
+  width: 108px;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+.warehouse-floor--built .capacity-bar {
+  flex: 1;
+}
+
+.warehouse-build-btn {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.warehouse-floor-locked {
+  font-size: 12px;
+}

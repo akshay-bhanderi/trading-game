@@ -4,7 +4,9 @@
  * function and writes back whatever GameState it returns, funneled through
  * `commit()` first (see its own doc comment). Covers trade, travel, stay,
  * deposit/withdraw, loan take/repay, default resolution, CA hiring, and
- * save/load — the full T034 action surface.
+ * save/load — the full T034 action surface. T052 (§14 Warehouse Storage)
+ * additively extends this with build/store/withdraw/insurance/sell-back
+ * actions — see those five entries below.
  *
  * Save/load (fast-tracked ahead of the full T032 persistence task before
  * T032 itself was built — both are done now): every mutating action runs
@@ -28,6 +30,13 @@ import { deposit as engineDeposit, withdraw as engineWithdraw } from '../../engi
 import { takeLoan as engineTakeLoan, repayLoan as engineRepayLoan } from '../../engine/bank/loans'
 import { resolveDefault as engineResolveDefault } from '../../engine/bank/default'
 import { hireCA as engineHireCA } from '../../engine/ca'
+import {
+  buildWarehouseFloor as engineBuildWarehouseFloor,
+  buyWarehouseInsurance as engineBuyWarehouseInsurance,
+  sellWarehouse as engineSellWarehouse,
+  storeGoods as engineStoreGoods,
+  withdrawGoods as engineWithdrawGoods,
+} from '../../engine/warehouse'
 import { generateDailyPaper } from '../../engine/newspaper'
 import { buyInformantTip as engineBuyInformantTip, type InformantTip } from '../../engine/informant'
 import { createRng } from '../../engine/rng'
@@ -50,6 +59,17 @@ interface GameStoreState {
   repayLoan: (cityId: CityId, amount: number) => void
   resolveDefault: (choice: 'surrender' | 'restructure' | 'bankruptcy') => void
   hireCA: (tier: Exclude<CATier, 'none'>) => void
+  /** T052 — Warehouse screen actions (§14). Each is a thin pass-through to
+   * its /src/engine/warehouse.ts counterpart, following the exact same
+   * "call the engine function, commit whatever it returns" pattern as every
+   * other action above — a rejected call (bad validation) simply results in
+   * `commit` re-saving/re-setting the SAME `game` reference the engine
+   * function itself returned unchanged, which is a harmless no-op. */
+  buildWarehouseFloor: (cityId: CityId) => void
+  storeGoods: (cityId: CityId, goodId: GoodId, qty: number) => void
+  withdrawGoods: (cityId: CityId, goodId: GoodId, qty: number) => void
+  buyWarehouseInsurance: (cityId: CityId) => void
+  sellWarehouse: (cityId: CityId) => void
   /** Generates today's newspaper if it hasn't been generated yet (§7's
    * pipeline is "screen-driven" per newsBot.ts's own doc comment — nothing
    * in the engine's daily tick calls `generateDailyPaper` automatically).
@@ -199,6 +219,36 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const { game } = get()
     if (!game) return
     commit(set, refreshUnlocks(engineHireCA(game, tier)))
+  },
+
+  buildWarehouseFloor: (cityId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineBuildWarehouseFloor(game, cityId)))
+  },
+
+  storeGoods: (cityId, goodId, qty) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineStoreGoods(game, cityId, goodId, qty)))
+  },
+
+  withdrawGoods: (cityId, goodId, qty) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineWithdrawGoods(game, cityId, goodId, qty)))
+  },
+
+  buyWarehouseInsurance: (cityId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineBuyWarehouseInsurance(game, cityId)))
+  },
+
+  sellWarehouse: (cityId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineSellWarehouse(game, cityId)))
   },
 
   refreshNewspaper: () => {

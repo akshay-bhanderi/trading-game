@@ -76,6 +76,51 @@
  *   Mines) is out of v1 scope. Modeled as `scope: { kind: 'global' }` as an
  *   inert placeholder — moot anyway since `affectedGoodIds` always resolves
  *   empty per the scope-fence note above.
+ *
+ * ---------------------------------------------------------------------------
+ * T050 ADDITION — "Warehouse fire" (§14), the 12th event type, and why it's
+ * excluded from `PRICE_EVENT_TYPE_IDS`
+ * ---------------------------------------------------------------------------
+ * §14 extends "§7's event table" with Warehouse fire: "low-probability,
+ * destroys 10-40% of one city's stored goods". Structurally this does NOT
+ * fit the rest of this table at all — every other row's effect is "multiply
+ * some good's PRICE by some factor for some duration" (`Event.multiplierMin/
+ * Max`, consumed by `events/resolution.ts`'s `getActiveEventEffectsFor` into
+ * `computePrice`'s `eventMultiplier` term). Warehouse fire's effect is
+ * "destroy a fraction of a QUANTITY already sitting in a warehouse" — there
+ * is no price anywhere in that sentence, and the `Event` type has no
+ * "destroy N% of X" field to express it with.
+ *
+ * Two options existed: (a) extend `Event`/`computePrice`'s pipeline with a
+ * new non-price effect kind just for this one row, or (b) keep Warehouse
+ * fire's actual random-firing + destructive effect COMPLETELY OUT of the
+ * scheduleEvent/resolveDueEvents/getActiveEventEffectsFor pipeline, firing it
+ * instead via its own small, dedicated, config-driven daily roll living in
+ * `/src/engine/warehouse.ts` (own RNG substream, same per-day-hash pattern
+ * `turnLoop.ts` already uses for its other daily rolls), and reserve this
+ * table entry PURELY for data-completeness / a stable `EventTypeId` +
+ * `label` that `newspaper.ts`'s generic `EVENT_TABLE[event.typeId]` lookup
+ * can still resolve if one is ever surfaced in newspaper text.
+ *
+ * (b) is what this file does. `warehouseFire`'s `goodsRule` is `{ kind:
+ * 'none' }` (see that new `EventGoodsRule` variant below) — it ALWAYS
+ * resolves to an empty `affectedGoodIds`, so even if a `warehouseFire`
+ * `Event` record were ever created and pushed through the normal
+ * scheduleEvent/resolveDueEvents machinery by mistake, it would be a
+ * complete no-op against prices (never matches any good). More importantly,
+ * `warehouseFire` is EXCLUDED from `PRICE_EVENT_TYPE_IDS` (the array
+ * `eventEngine.ts`'s `scheduleEvent` actually draws from — see that
+ * constant's own doc comment below), so in normal play it is never scheduled
+ * through that pipeline at all; its real firing is entirely owned by
+ * `warehouse.ts`'s own daily check against `CONFIG.warehouse.fire.dailyProbability`.
+ * This also naturally makes it "low-probability" in the sense §14 asks for,
+ * without needing to invent a per-type weighting scheme for the other 11
+ * uniformly-drawn event types just to accommodate one outlier.
+ *
+ * `multiplier`/`durationDays` are still populated (neutral `1x`/1 day) purely
+ * so this row satisfies `EventTypeDef`'s required shape — neither field is
+ * ever actually read for this type, since `resolveScopeAndGoods`'s
+ * `goodsRule: 'none'` guarantees no price effect can ever result.
  */
 
 import type { CityId, EventScope, EventTypeId, GoodId } from '../types'
@@ -101,6 +146,15 @@ export type EventGoodsRule =
   /** No real v1 good is reachable for this event type (Electronics/Rare
    * Metals, §13) — always resolves to an empty `affectedGoodIds` array. */
   | { kind: 'inertNoV1Good' }
+  /** This event type's effect is NOT a price multiplier at all (currently
+   * only Warehouse fire, §14/T050 — see file header's "T050 ADDITION"
+   * section) — always resolves to an empty `affectedGoodIds` array, same
+   * empty-array RESULT as `inertNoV1Good` but a DIFFERENT reason: this isn't
+   * about a good being out of v1 scope, it's that the event's real effect
+   * (destroying stored warehouse goods) is consumed entirely outside this
+   * table's price-multiplier pipeline, by `warehouse.ts`'s own dedicated
+   * daily check. */
+  | { kind: 'none' }
 
 export type EventScopeRule =
   /** No city/tier concept — applies everywhere (Tech breakthrough; also
@@ -357,13 +411,53 @@ export const EVENT_TABLE: Record<EventTypeId, EventTypeDef> = {
       'exists); this table only defines the price multiplier. §7 gives no duration for this ' +
       'row; defaulted to 5-8 days.',
   },
+
+  warehouseFire: {
+    typeId: 'warehouseFire',
+    label: 'Warehouse fire',
+    // Always resolves empty — this event type never moves a price. See file
+    // header's "T050 ADDITION" section for the full rationale.
+    goodsRule: { kind: 'none' },
+    // Retained purely for `EventTypeDef` shape completeness (never actually
+    // consumed — `warehouse.ts` owns this event's real scope/firing/effect
+    // via its own dedicated per-city daily roll, not `resolveScopeAndGoods`).
+    scopeRule: { kind: 'oneCity' },
+    // Neutral 1x — never applied to any price (empty affectedGoodIds above
+    // guarantees `getActiveEventEffectsFor` can never match this event to
+    // any good even if it somehow entered the normal pipeline).
+    multiplier: { kind: 'single', range: { min: 1, max: 1 } },
+    durationDays: { min: 1, max: 1 },
+    inertInV1: false,
+    docNote:
+      "§14's Warehouse fire: destroys 10-40% of one city's stored warehouse goods (10% if " +
+      'insured), NOT a price effect. Deliberately EXCLUDED from `PRICE_EVENT_TYPE_IDS` (the ' +
+      "array eventEngine.ts's scheduleEvent actually draws from) — its real random firing is a " +
+      'dedicated daily check in warehouse.ts against CONFIG.warehouse.fire.dailyProbability, ' +
+      "independent of this table's scheduleEvent/resolveDueEvents pipeline. This entry exists " +
+      "purely for EventTypeId/label completeness (e.g. newspaper.ts's generic " +
+      'EVENT_TABLE[event.typeId] lookup) — see file header for the full rationale.',
+  },
 }
 
-/** Convenience: every base event type id, in table-declaration order. Not
- * required by any consumer yet, but useful for iterating the table without
- * re-deriving `Object.keys` everywhere (eventEngine.ts and tests both need
- * this at least once). */
+/** Convenience: every event type id defined in this table (12, including
+ * Warehouse fire), in table-declaration order. Not required by any consumer
+ * yet, but useful for iterating the FULL table without re-deriving
+ * `Object.keys` everywhere (eventTable.test.ts and eventEngine.test.ts both
+ * need this at least once). NOTE: this is NOT the array `eventEngine.ts`'s
+ * `scheduleEvent` draws its uniform pick from — see `PRICE_EVENT_TYPE_IDS`
+ * immediately below for that (deliberately narrower) pool. */
 export const EVENT_TYPE_IDS = Object.keys(EVENT_TABLE) as EventTypeId[]
+
+/**
+ * The subset of `EVENT_TYPE_IDS` that actually move prices and are eligible
+ * for `eventEngine.ts`'s `scheduleEvent` uniform draw — i.e. every event type
+ * EXCEPT `warehouseFire` (T050 — see file header's "T050 ADDITION" section
+ * for why that one type is excluded). `eventEngine.ts` picks from THIS array,
+ * not `EVENT_TYPE_IDS`, so Warehouse fire is never scheduled/resolved through
+ * the newspaper/rumor pipeline at all; it fires exclusively via
+ * `warehouse.ts`'s own dedicated daily roll.
+ */
+export const PRICE_EVENT_TYPE_IDS = EVENT_TYPE_IDS.filter((id) => id !== 'warehouseFire')
 
 /** Type-only re-export so callers don't need a second import from
  * ../types just to reference the scope shape while working with this

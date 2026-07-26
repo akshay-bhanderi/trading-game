@@ -8,10 +8,13 @@
  *
  * Pure TypeScript, zero React imports (see /src/engine/README.md).
  *
- * Formula (matches §4 exactly):
+ * Formula (matches §4 exactly, extended by T048/§14 — see that addition's own
+ * doc comment below for the warehouse term):
  *   netWorth = cash
  *            + sum(all bankAccounts' depositBalance)
  *            + sum(carried goods valued at last-known price)
+ *            + sum(warehouse-stored goods valued at each city's own
+ *              last-known price, §14)
  *            − sum(all bankAccounts' outstanding debt)
  *
  * where "outstanding debt" for a bank account is `loan.principal +
@@ -40,9 +43,31 @@
  * a real run — cargo starts empty at day 1 before any price has been seen —
  * but it matters for constructing minimal test fixtures, so the behavior is
  * made explicit and consistent here rather than left to chance.
+ *
+ * ---------------------------------------------------------------------------
+ * T048 addition (§14 Warehouse Storage) — stored goods valued at EACH CITY'S
+ * OWN last-known price, not `state.currentCity`'s
+ * ---------------------------------------------------------------------------
+ * `state.warehouseGoods` (see /src/engine/warehouse.ts's file header) is
+ * keyed by the city each holding physically sits in — unlike carried cargo,
+ * which travels with the player and has no city of its own (hence the
+ * current-city fallback above), a warehouse IS tied to one specific city.
+ * §14 says stored goods count toward net worth "at last-known local price" —
+ * "local" here unambiguously means THAT city's own price history, valued via
+ * `warehouse.ts`'s `calcWarehouseGoodsValue(state, cityId)` (which applies
+ * the identical basePrice-fallback rule as above, per city). This file sums
+ * that helper's result across EVERY city the player owns a warehouse in —
+ * including cities the player isn't currently standing in — since §14
+ * intentionally makes stored goods visible to net worth regardless of where
+ * the player currently is (that's the whole point of a "distributed storage
+ * network... without committing cargo space"). This does not conflict with
+ * §6's "never leak live remote prices" invariant: `calcWarehouseGoodsValue`
+ * only ever reads `lastSeenPrice` (never `currentPrice`), exactly like this
+ * file's own cargo-valuation loop above.
  */
 
 import { GOODS } from './data/goods'
+import { calcWarehouseGoodsValue } from './warehouse'
 import type { GameState } from './types'
 
 /** O(1) good-id -> basePrice lookup, built once from the goods data file. */
@@ -79,7 +104,16 @@ export function calcNetWorth(state: GameState): number {
     goodsValue += holding.qty * unitPrice
   }
 
-  return state.cash + deposits + goodsValue - debt
+  // T048 addition — see file header. Sums every city's stored warehouse
+  // goods at THAT city's own last-known price (not just `state.currentCity`'s).
+  let warehouseGoodsValue = 0
+  if (state.warehouseGoods) {
+    for (const cityId of Object.keys(state.warehouseGoods)) {
+      warehouseGoodsValue += calcWarehouseGoodsValue(state, cityId)
+    }
+  }
+
+  return state.cash + deposits + goodsValue + warehouseGoodsValue - debt
 }
 
 /**

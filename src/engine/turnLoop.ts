@@ -223,6 +223,28 @@
  * and still threaded through exactly as before.
  *
  * ---------------------------------------------------------------------------
+ * T050 addition — Warehouse fire's daily roll (§14)
+ * ---------------------------------------------------------------------------
+ * `checkWarehouseFires` (/src/engine/warehouse.ts) is called once per day,
+ * right after event scheduling and BEFORE prices are computed/net worth is
+ * updated below — so if a fire destroys stored goods today, that loss is
+ * already reflected the very same day `updatePeakNetWorth` runs (consistent
+ * with how this file already sequences "resolve today's events, THEN compute
+ * today's derived numbers"). Uses its own independent per-day RNG substream
+ * (`createWarehouseFireRng`, same `(seed, day)`-hash technique as the other
+ * streams below) so how many warehouses the player owns never shifts the
+ * price-noise/event-scheduling/event-resolution streams' draws, or vice
+ * versa. See warehouse.ts's file header for why this is a dedicated daily
+ * check rather than routed through `scheduleEvent`/`resolveDueEvents`.
+ *
+ * `accrueWarehouseMaintenanceDebtInterest` (warehouse.ts) is also wired in
+ * here, alongside `accrueTaxDebtInterest`, for the same reason: any
+ * outstanding `state.warehouseMaintenanceDebt` (T049, a Small-rate bucket
+ * kept deliberately SEPARATE from `state.taxDebt`'s Huge-rate bucket) must
+ * keep accruing daily like a real overdue balance, independent of whether
+ * today happens to be a year-end tick.
+ *
+ * ---------------------------------------------------------------------------
  * Integration with Stay/Travel (T013/T014) — option (a): funnel through
  * `advanceDay`
  * ---------------------------------------------------------------------------
@@ -257,6 +279,7 @@ import { checkRestructureRecheck, updateDefaultTrigger } from './bank/default'
 import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
 import { scheduleEvent } from './events/eventEngine'
 import { accrueTaxDebtInterest, runYearEnd } from './tax'
+import { accrueWarehouseMaintenanceDebtInterest, checkWarehouseFires } from './warehouse'
 import type { GameState, GoodId, PriceState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -293,6 +316,14 @@ function createEventResolutionRng(seed: number, day: number) {
  * `dailySchedulingProbability` doc comment for why this call exists. */
 function createEventSchedulingRng(seed: number, day: number) {
   return createRng(hashStringToUint32(`${seed}:turnLoopEventScheduling:${day}`))
+}
+
+/** Fresh `Rng` for T050's daily Warehouse-fire roll (per-city fire check +,
+ * on a hit, the uninsured loss-fraction draw) — a stream independent of
+ * every other stream above. See warehouse.ts's `checkWarehouseFires` and
+ * this file's own "T050 addition" header section. */
+function createWarehouseFireRng(seed: number, day: number) {
+  return createRng(hashStringToUint32(`${seed}:turnLoopWarehouseFire:${day}`))
 }
 
 /**
@@ -332,10 +363,16 @@ export function advanceDay(state: GameState): GameState {
       ? scheduleEvent(stateAfterResolution, eventSchedulingRng).updatedState
       : stateAfterResolution
 
+  // T050: roll today's Warehouse fire check (per city that owns a warehouse)
+  // BEFORE prices/net worth are computed below — see file header's "T050
+  // addition" section. Uses its own independent per-day RNG substream.
+  const warehouseFireRng = createWarehouseFireRng(state.seed, newDay)
+  const stateAfterWarehouseFire = checkWarehouseFires(stateAfterEvents, warehouseFireRng)
+
   // Only refresh the "physically present" city's staleness fields when the
   // player isn't mid-travel — see file header for why this extra condition
   // (beyond just "is this the current city") is required.
-  const isPresent = stateAfterEvents.travelInProgress === null
+  const isPresent = stateAfterWarehouseFire.travelInProgress === null
 
   const newPriceStates: Record<string, Record<GoodId, PriceState>> = {}
 
@@ -345,7 +382,7 @@ export function advanceDay(state: GameState): GameState {
 
     for (const good of GOODS) {
       const previousState = previousCityStates?.[good.id]
-      const eventEffects = getActiveEventEffectsFor(city, good, newDay, stateAfterEvents.activeEvents)
+      const eventEffects = getActiveEventEffectsFor(city, good, newDay, stateAfterWarehouseFire.activeEvents)
       const { nextState, price } = computePrice(
         city,
         good,
@@ -356,7 +393,7 @@ export function advanceDay(state: GameState): GameState {
         eventEffects,
       )
 
-      const isPresentHere = isPresent && city.id === stateAfterEvents.currentCity
+      const isPresentHere = isPresent && city.id === stateAfterWarehouseFire.currentCity
       cityPriceStates[good.id] = isPresentHere
         ? { ...nextState, lastSeenPrice: price, lastSeenDay: newDay }
         : nextState
@@ -370,13 +407,13 @@ export function advanceDay(state: GameState): GameState {
   // types.ts's `pendingResolutions` field doc and the file header above.
   // `?? []` guards fixtures/older states that predate this field.
   const advanced: GameState = {
-    ...stateAfterEvents,
+    ...stateAfterWarehouseFire,
     day: newDay,
     priceStates: newPriceStates,
     pendingResolutions:
       resolutions.length === 0
-        ? (stateAfterEvents.pendingResolutions ?? [])
-        : [...(stateAfterEvents.pendingResolutions ?? []), ...resolutions],
+        ? (stateAfterWarehouseFire.pendingResolutions ?? [])
+        : [...(stateAfterWarehouseFire.pendingResolutions ?? []), ...resolutions],
   }
 
   // T021: recompute the hidden trader rank (§8) AFTER net worth is updated
@@ -453,5 +490,19 @@ export function advanceDay(state: GameState): GameState {
   //      waiver).
   // ---------------------------------------------------------------------
   const withTaxDebtInterest = accrueTaxDebtInterest(withDefaultFlow)
-  return newDay % CONFIG.tax.yearLengthDays === 0 ? runYearEnd(withTaxDebtInterest) : withTaxDebtInterest
+
+  // ---------------------------------------------------------------------
+  // T049 addition (same additive-step pattern as T022-T024/T030 above) —
+  // accrues one day of simple daily interest on any outstanding
+  // `state.warehouseMaintenanceDebt`, at the Small-bank rate — see this
+  // file's "T050 addition" header section and warehouse.ts's
+  // `accrueWarehouseMaintenanceDebtInterest` for the full rationale on why
+  // this is a separate bucket/rate from `accrueTaxDebtInterest` just above.
+  // Runs unconditionally every day, like the other daily accrual steps.
+  // ---------------------------------------------------------------------
+  const withWarehouseDebtInterest = accrueWarehouseMaintenanceDebtInterest(withTaxDebtInterest)
+
+  return newDay % CONFIG.tax.yearLengthDays === 0
+    ? runYearEnd(withWarehouseDebtInterest)
+    : withWarehouseDebtInterest
 }

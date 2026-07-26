@@ -5,10 +5,12 @@
  * Source of truth: trade-winds-design-doc.md §4 (cities), §5 (goods), §6
  * (price engine), §7 (events/newspaper), §8 (rank), §9 (banking), §10 (tax/CA).
  *
- * Phase 2 note: Warehouse (§14), Hotel (§15) and Aviation (§16) fields are
- * intentionally NOT included here yet. They land in Phase 10-12 (T046-T066)
- * once the v1 core loop ships and clears the §11 bot-harness baseline (T045).
- * `GameState` is expected to be extended incrementally by those later tasks.
+ * Phase 2 note: Warehouse (§14) fields were added in Phase 10 (T046-T051,
+ * see `WarehouseState` and the `warehouses`/`warehouseGoods`/
+ * `warehouseMaintenanceDebt` fields on `GameState` below). Hotel (§15) and
+ * Aviation (§16) fields are still intentionally NOT included here yet — they
+ * land in Phase 11-12 (T053-T066). `GameState` is expected to be extended
+ * incrementally by those later tasks, same as Warehouse was.
  */
 
 // ---------------------------------------------------------------------------
@@ -121,8 +123,16 @@ export interface PriceState {
 // Event (§7 — newspaper/rumor pipeline)
 // ---------------------------------------------------------------------------
 
-/** The 11 base event types from §7's table. Phase 2 (§14/§16) adds
- * "Warehouse fire" and "Aviation safety incident" later — not here. */
+/** The 11 base event types from §7's table, plus §14's "Warehouse fire"
+ * (T050 — the 12th type; Phase 2's other addition, §16's "Aviation safety
+ * incident", is a later phase's job, not added here). NOTE: unlike the
+ * original 11, `warehouseFire` is deliberately EXCLUDED from
+ * `eventTable.ts`'s `PRICE_EVENT_TYPE_IDS` (the pool `eventEngine.ts`'s
+ * `scheduleEvent` draws from) — it never moves a price and is instead fired
+ * via its own dedicated daily roll in `warehouse.ts`. See that file's header
+ * and `eventTable.ts`'s `warehouseFire` entry for the full rationale. It is
+ * still listed here / in `EVENT_TABLE` for data-completeness and so
+ * `newspaper.ts`'s generic `EVENT_TABLE[event.typeId]` lookup stays total. */
 export type EventTypeId =
   | 'bumperHarvest'
   | 'droughtCropFailure'
@@ -135,6 +145,7 @@ export type EventTypeId =
   | 'festivalSeason'
   | 'governmentTariff'
   | 'epidemic'
+  | 'warehouseFire'
 
 export type EventScope =
   | { kind: 'global' }
@@ -292,6 +303,28 @@ export interface BankAccount {
    * "one active loan per bank" constraint — a bank account can hold at
    * most one Loan, never a list of them. */
   loan: Loan | null
+}
+
+// ---------------------------------------------------------------------------
+// WarehouseState (§14 — per-city warehouse ownership, T047)
+// ---------------------------------------------------------------------------
+
+/** One city's warehouse ownership record. Missing from `GameState.warehouses`
+ * entirely is equivalent to `{ floorsBuilt: 0, insured: false }` — no
+ * warehouse ever built there (same "absent === zero" convention `bankAccounts`
+ * already uses, §9). */
+export interface WarehouseState {
+  /** 0-6 (`CONFIG.warehouse.maxFloors`). Floors are built strictly in order
+   * (§14: "built in order, can't skip ahead") — this single counter, rather
+   * than e.g. a `Set<number>` of owned floor numbers, structurally enforces
+   * that: there is no representable state where floor 3 exists but floor 2
+   * doesn't. */
+  floorsBuilt: number
+  /** True once `buyWarehouseInsurance` (warehouse.ts) has toggled the
+   * optional fire-insurance policy on for this city (§14) — billed at
+   * `CONFIG.warehouse.fire.insuranceAnnualRatePctOfStoredValue` of that
+   * city's stored-goods value alongside maintenance, at year-end (tax.ts). */
+  insured: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -584,4 +617,68 @@ export interface GameState {
    * year yet).
    */
   hiredCATierThisFiscalYear?: CATier
+
+  // ---------------------------------------------------------------------
+  // T047-T051 additions (§14 Warehouse Storage) — all optional, backward
+  // compatible with every earlier task's `GameState` fixtures (none of
+  // which set any of these; treated as "no warehouse anywhere" / "nothing
+  // stored anywhere" / "no outstanding warehouse debt" wherever read). See
+  // /src/engine/warehouse.ts's file header for the full ownership/storage/
+  // maintenance/fire/sell-back rationale.
+  // ---------------------------------------------------------------------
+
+  /** One entry per city where the player owns at least one warehouse floor
+   * (T047) — see `WarehouseState`'s own doc comment for the "missing key
+   * === zero floors" convention. Sole writer: `buildWarehouseFloor`/
+   * `sellWarehouse`/`buyWarehouseInsurance` (warehouse.ts). */
+  warehouses?: Record<CityId, WarehouseState>
+
+  /**
+   * Goods physically sitting in a city's warehouse (T048) — deliberately
+   * reuses the exact SAME `Cargo` shape (`Record<GoodId, CargoHolding>`,
+   * FIFO lots + `avgBuyCost`) that `state.cargo` already uses, keyed one
+   * level deeper by `CityId`. This lets `storeGoods`/`withdrawGoods`
+   * (warehouse.ts) move whole FIFO lots between a city's warehouse and the
+   * player's cargo WITHOUT losing cost basis — a later real Market sale
+   * (`trade.ts`'s `sell`, only reachable after `withdrawGoods` brings the
+   * goods back into `state.cargo`) still computes correct FIFO realized
+   * profit, exactly as if the goods had simply sat in cargo the whole time.
+   * Moving goods into/out of a warehouse is NEVER itself a taxable event
+   * (§10: only a Market sale realizes profit) — this field's shape makes
+   * that automatic, since no cost-basis information is ever discarded on
+   * either side of the move.
+   *
+   * Never counted against `cargoCapacity` (§14: "a second, separate
+   * capacity system") — capacity here is instead each city's OWN built-
+   * floor `cumulativeCapacity`
+   * (`CONFIG.warehouse.floors[floorsBuilt].cumulativeCapacity`). A missing
+   * entry (either the outer `CityId` or an inner `GoodId`) means "0 units
+   * stored" everywhere this is read, same convention as `cargo` itself.
+   */
+  warehouseGoods?: Record<CityId, Cargo>
+
+  /**
+   * Non-null while the player owes an outstanding forced warehouse-
+   * maintenance-shortfall debt (§14: "unpaid maintenance accrues as
+   * Small-bank-rate debt against the player, same as an unpaid tax
+   * shortfall"). Structurally identical to `taxDebt` above (`{ principal,
+   * accruedInterest, startDay }`) and accrues the same way — simple daily
+   * interest on a fixed principal, via `warehouse.ts`'s
+   * `accrueWarehouseMaintenanceDebtInterest` (wired into `advanceDay`
+   * alongside `accrueTaxDebtInterest`) — but at
+   * `CONFIG.banking.loanInterestDailyRates.Small` (0.9%/day) rather than
+   * `CONFIG.tax.forcedLoanPenaltyDailyRate` (1.2%/day, the Huge-rate tax
+   * shortfall loan). §14 is explicit this is a DIFFERENT, lower-rate debt
+   * bucket than the tax shortfall — so a warehouse-maintenance shortfall
+   * can never top up (or be confused with) `taxDebt`, and vice versa. Same
+   * "separate top-level field rather than a `Loan` on some city's
+   * `BankAccount`" rationale as `taxDebt` applies here too (this debt isn't
+   * tied to any one city's bank). `null`/`undefined` = no outstanding
+   * warehouse-maintenance debt.
+   */
+  warehouseMaintenanceDebt?: {
+    principal: number
+    accruedInterest: number
+    startDay: number
+  } | null
 }

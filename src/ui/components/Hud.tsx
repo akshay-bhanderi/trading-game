@@ -4,6 +4,14 @@
  * §12: top-left city name, top-right cash + owned commodities, bottom-left
  * bank icon, bottom-right market icon. Newspaper/Travel/Stay sit in the
  * bottom bar between bank and market (§12 leaves their exact placement TBD).
+ *
+ * T052 addition (§14 Warehouse Storage): a `'warehouse'` `PopupKind` +
+ * bottom-bar icon button, added following the exact same pattern as the
+ * pre-existing bank/newspaper/travel/market buttons — `onOpen('warehouse')`
+ * is handled by App.tsx exactly like every other popup case. Uses
+ * `SkylineIcon` (already built for a future building-elevation visual, see
+ * PixelIcons.tsx) since it's the closest existing pixel icon to a warehouse
+ * building silhouette — no new icon asset needed.
  */
 
 import {
@@ -12,9 +20,10 @@ import {
   CoinIcon,
   CompassIcon,
   LedgerIcon,
+  SkylineIcon,
 } from './PixelIcons'
 
-export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | null
+export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | 'warehouse' | null
 
 interface HudProps {
   cityName: string
@@ -74,6 +83,9 @@ export default function Hud({
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('market')} aria-label="Market">
           <CoinIcon size={20} />
+        </button>
+        <button className="hud-icon-btn" onClick={() => onOpen('warehouse')} aria-label="Warehouse">
+          <SkylineIcon size={20} />
         </button>
         <button className="hud-icon-btn" onClick={onSave} aria-label="Save game">
           <span className="hud-icon-glyph">💾</span>

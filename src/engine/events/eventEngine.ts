@@ -19,13 +19,21 @@
  * ---------------------------------------------------------------------------
  * DESIGN — event-type selection: uniform at random
  * ---------------------------------------------------------------------------
- * `scheduleEvent` picks which of the 11 base event types to schedule via
- * `rng.pick(EVENT_TYPE_IDS)` — a uniform draw. §7 doesn't call for weighting
- * any event type over another, so uniform is the simplest choice that
- * satisfies the task brief ("simplest is uniform unless the doc implies
- * otherwise"). A future balance pass (T029) could introduce weights (e.g. to
- * make rarer/more dramatic events less frequent) without changing this
- * function's shape — only the selection line would need to change.
+ * `scheduleEvent` picks which event type to schedule via
+ * `rng.pick(PRICE_EVENT_TYPE_IDS)` — a uniform draw over the 11 base §7
+ * types. §7 doesn't call for weighting any event type over another, so
+ * uniform is the simplest choice that satisfies the task brief ("simplest is
+ * uniform unless the doc implies otherwise"). A future balance pass (T029)
+ * could introduce weights (e.g. to make rarer/more dramatic events less
+ * frequent) without changing this function's shape — only the selection line
+ * would need to change.
+ *
+ * T050 note: `PRICE_EVENT_TYPE_IDS` (not `EVENT_TYPE_IDS`) is used
+ * deliberately — it EXCLUDES `warehouseFire` (§14's 12th event type, added by
+ * eventTable.ts), which never moves a price and is fired via its own
+ * dedicated daily roll in `/src/engine/warehouse.ts` instead of this
+ * schedule/resolve pipeline. See eventTable.ts's file header ("T050
+ * ADDITION") for the full rationale.
  *
  * ---------------------------------------------------------------------------
  * DESIGN — hidden-truth probability
@@ -68,7 +76,7 @@ import { GOODS } from '../data/goods'
 import { CONFIG } from '../config'
 import type { Rng } from '../rng'
 import type { City, Event, EventScope, GameState, GoodId } from '../types'
-import { EVENT_TABLE, EVENT_TYPE_IDS } from './eventTable'
+import { EVENT_TABLE, PRICE_EVENT_TYPE_IDS } from './eventTable'
 import type { EventGoodsRule, EventMultiplierSpec, EventScopeRule, EventTypeDef, MultiplierRange } from './eventTable'
 
 export interface ScheduleEventResult {
@@ -89,6 +97,13 @@ function resolveIndependentGoods(rule: EventGoodsRule, rng: Rng): GoodId[] {
     case 'allGoods':
       return GOODS.map((g) => g.id)
     case 'inertNoV1Good':
+      return []
+    case 'none':
+      // T050: Warehouse fire's non-price effect — see eventTable.ts's file
+      // header "T050 ADDITION" section. Never actually reached in practice
+      // since `warehouseFire` is excluded from `PRICE_EVENT_TYPE_IDS` (this
+      // function's caller only ever picks from that narrower pool), but
+      // handled here for exhaustiveness/defensiveness.
       return []
     case 'derivedFromScope':
       // Defensive: should never be reached — callers route this case through
@@ -173,7 +188,9 @@ function resolveMultiplierRange(spec: EventMultiplierSpec, rng: Rng): Multiplier
 
 /**
  * Schedules one new event occurrence:
- *   1. Picks an event type uniformly at random from `EVENT_TABLE`.
+ *   1. Picks an event type uniformly at random from `PRICE_EVENT_TYPE_IDS`
+ *      (every `EVENT_TABLE` entry except `warehouseFire` — see file header's
+ *      T050 note).
  *   2. Resolves its concrete affected good(s) and scope (city/tier/global)
  *      per that type's rules, using `CITIES`/`GOODS` data and the RNG for
  *      any remaining randomness (e.g. which producer city, which tier).
@@ -190,7 +207,7 @@ function resolveMultiplierRange(spec: EventMultiplierSpec, rng: Rng): Multiplier
  * valid `Event` (there is no "rejection" case, unlike buy/sell/travel/stay).
  */
 export function scheduleEvent(state: GameState, rng: Rng): ScheduleEventResult {
-  const typeId = rng.pick(EVENT_TYPE_IDS)
+  const typeId = rng.pick(PRICE_EVENT_TYPE_IDS)
   const def = EVENT_TABLE[typeId]
 
   const { affectedGoodIds, scope } = resolveScopeAndGoods(def, rng)

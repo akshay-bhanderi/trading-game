@@ -19,7 +19,7 @@
  *   §8  rank
  *   §9  banking
  *   §10 tax
- *   §14 warehouse (placeholder — filled in by T046)
+ *   §14 warehouse (T046)
  *   §15 hotel (placeholder — filled in by T053)
  *   §16 aviation (placeholder — filled in by T059)
  */
@@ -487,11 +487,109 @@ export const TAX = {
 // ---------------------------------------------------------------------------
 // §14 — Warehouse Storage (Phase 2 / Phase 10, T046)
 // ---------------------------------------------------------------------------
-// Placeholder only — do NOT fill in yet. T046 will populate floor
-// capacities/costs/maintenance here (and in /src/engine/data/warehouse.ts),
-// plus the warehouse-fire loss range and insurance rate (T050).
+
+/** One row of §14's floor table. `capacityAdded` is the INCREMENTAL capacity
+ * this floor alone contributes (mirrors `CARGO.upgrades`' per-tier shape);
+ * `cumulativeCapacity` is the running total through this floor, kept as a
+ * separate field (rather than derived by summing on every read) so
+ * `buildWarehouseFloor`/`storeGoods` (/src/engine/warehouse.ts) can do a
+ * single O(1) lookup for "how much can this city hold right now". Likewise
+ * `buildCost` is this floor's OWN marginal price (what you pay to go from
+ * `floorsBuilt = n-1` to `n`) — NOT a cumulative total spent — matching how
+ * §14's table lists "Build cost" as one number per row without a "+" prefix
+ * (contrast with §15 Hotel's tiers, which explicitly use a "+1,200×" marginal
+ * notation on top of a separately-stated total; §14 doesn't need that same
+ * notation because each row's own number already IS the marginal cost). See
+ * warehouse.ts's `cumulativeBuildCost` for where the RUNNING TOTAL spent
+ * (needed for T051's 50%-of-total-invested sell-back) is derived by summing
+ * these per-floor marginal costs across every floor owned. */
+export interface WarehouseFloorTierConfig {
+  capacityAdded: number
+  cumulativeCapacity: number
+  buildCost: number
+  /** §14: "Maintenance across every owned warehouse/floor bills at
+   * year-end alongside tax" — this floor's own annual contribution. */
+  annualMaintenance: number
+}
+
+/**
+ * §14's floor table, keyed BY FLOOR NUMBER (1-6, per T046's acceptance
+ * criteria — "keyed for lookup by floor number") rather than as a plain
+ * array — `buildWarehouseFloor` looks up `WAREHOUSE_FLOORS[currentFloorsBuilt
+ * + 1]` directly, no `.find()`/index-off-by-one bookkeeping needed. Numbers
+ * copied verbatim from §14's table; cumulative capacities double-checked
+ * against the task brief's own restated sequence (150 -> 400 -> 800 -> 1,450
+ * -> 2,450 -> 4,050).
+ *
+ * Declared as its own top-level `const` with an EXPLICIT `Record<number,
+ * WarehouseFloorTierConfig>` type annotation (rather than inlined into
+ * `WAREHOUSE` with a `satisfies` clause, as `CONFIG.tax.caTiers` does for its
+ * string-literal-keyed table) because callers index this one by an arbitrary
+ * *variable* `number` (`floorsBuilt + 1`), not a known string-literal union —
+ * `satisfies` would preserve the object's literal `{1: ..., 2: ..., ...}`
+ * key-type, which TS then refuses to index with a plain `number` at all
+ * ("no index signature"). A real `Record<number, X>` type has that index
+ * signature, so `WAREHOUSE_FLOORS[n]` type-checks for any `n`.
+ */
+const WAREHOUSE_FLOORS: Record<number, WarehouseFloorTierConfig> = {
+  1: { capacityAdded: 150, cumulativeCapacity: 150, buildCost: 3_000, annualMaintenance: 150 },
+  2: { capacityAdded: 250, cumulativeCapacity: 400, buildCost: 8_000, annualMaintenance: 300 },
+  3: { capacityAdded: 400, cumulativeCapacity: 800, buildCost: 20_000, annualMaintenance: 600 },
+  4: { capacityAdded: 650, cumulativeCapacity: 1_450, buildCost: 50_000, annualMaintenance: 1_200 },
+  5: { capacityAdded: 1_000, cumulativeCapacity: 2_450, buildCost: 120_000, annualMaintenance: 2_500 },
+  6: { capacityAdded: 1_600, cumulativeCapacity: 4_050, buildCost: 300_000, annualMaintenance: 5_000 },
+}
+
 export const WAREHOUSE = {
-  // Filled in by T046
+  /** §14: "up to 6 per warehouse, built in order (can't skip ahead)." */
+  maxFloors: 6,
+
+  floors: WAREHOUSE_FLOORS,
+
+  /** §14: "the whole warehouse (all floors) liquidates for 50% of total
+   * build cost" (T051). Applied to `warehouse.ts`'s `cumulativeBuildCost`
+   * (sum of every OWNED floor's own `buildCost`, see that interface's doc
+   * comment above), matching §15 Hotel's identically-worded "50% of total
+   * invested" salvage rate — the two systems intentionally share this
+   * fraction, so it is still tracked here as its own named constant rather
+   * than a bare inline `0.5`, in case a future balance pass wants them to
+   * diverge.
+   */
+  sellBackFraction: 0.5,
+
+  /**
+   * §14 "Risk" — Warehouse fire + insurance (T050). See
+   * /src/engine/warehouse.ts's file header for the full design rationale on
+   * why Warehouse fire's random firing is checked via a DEDICATED daily roll
+   * here rather than through the general §7 event-scheduling pipeline
+   * (eventEngine.ts's `scheduleEvent`/`EVENT_TYPE_IDS`).
+   */
+  fire: {
+    /**
+     * ⚙ Per-city-with-a-warehouse, per-day probability of a fire. §14 only
+     * says "low-probability" with no exact figure — a documented judgment
+     * call (candidate for a future balance pass), chosen so that over one
+     * full 90-day fiscal year a given warehouse city has roughly a
+     * 1-(1-p)^90 ≈ 23% chance of at least one fire — rare enough that most
+     * short/early runs never see one, but frequent enough across a full
+     * multi-warehouse, multi-year run that insurance (below) is a real,
+     * non-trivial decision rather than a purely theoretical one.
+     */
+    dailyProbability: 0.003,
+    /** §14: "destroys 10-40% of one city's stored goods" — the loss
+     * fraction drawn uniformly from this range when a fire fires AND no
+     * insurance is active. */
+    lossPct: { min: 0.1, max: 0.4 },
+    /** §14: "insurance ... caps fire loss at 10%" — the fixed loss fraction
+     * applied instead of a fresh `lossPct` draw whenever insurance is
+     * active at the moment a fire fires. */
+    insuredLossPct: 0.1,
+    /** §14: "insurance (2%/year of stored goods' value, billed with
+     * maintenance)" — charged at the SAME year-end tick as floor
+     * maintenance (see tax.ts's `runYearEnd` T049/T050 extension), computed
+     * off whatever is stored in that city at that moment. */
+    insuranceAnnualRatePctOfStoredValue: 0.02,
+  },
 }
 
 // ---------------------------------------------------------------------------

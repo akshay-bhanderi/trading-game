@@ -136,10 +136,43 @@
  * `TaxRecord` (with `taxPaid: 0`, `forcedLoanTriggered: false`) for history
  * consistency, and still resets the fiscal-year accumulators — the waiver
  * only forgives the BILL, not the bookkeeping. Every later year-end
- * (`fiscalYear >= 2`), even on Noob, taxes normally.
+ * (`fiscalYear >= 2`), even on Noob, taxes normally. NOTE: the waiver is
+ * SPECIFICALLY a tax waiver — §14's warehouse maintenance bill (see the T049
+ * addition immediately below) is a completely separate obligation and is
+ * NEVER waived, including in a Noob's first year.
+ *
+ * ---------------------------------------------------------------------------
+ * T049/T050 addition — warehouse maintenance + insurance billed at the SAME
+ * year-end tick, AFTER tax, into a SEPARATE Small-rate debt bucket
+ * ---------------------------------------------------------------------------
+ * §14: "Maintenance across every owned warehouse/floor bills at year-end
+ * alongside tax... unpaid maintenance accrues as Small-bank-rate debt
+ * against the player, same as an unpaid tax shortfall" (i.e. the same
+ * cash-then-deposits-then-forced-debt MECHANISM as tax, but a DIFFERENT,
+ * lower interest rate and a DIFFERENT debt bucket — see
+ * `state.warehouseMaintenanceDebt`'s own doc comment in types.ts for why it
+ * cannot simply top up `taxDebt`).
+ *
+ * `calcWarehouseAnnualBill` (/src/engine/warehouse.ts, T049/T050) computes
+ * ONE combined number for the year: every owned floor's annual maintenance,
+ * plus a 2%/year insurance premium on each INSURED city's current stored
+ * value. This file is the sole place that number is ever DEDUCTED from —
+ * mirroring warehouse.ts's own "compute here, deduct in tax.ts" split.
+ *
+ * ORDERING JUDGMENT CALL: the warehouse bill is deducted from whatever cash
+ * and deposits remain AFTER tax's own deduction above, rather than the two
+ * bills being combined into one pool and split proportionally on shortfall.
+ * §14 doesn't specify an order, and combining-then-splitting would need an
+ * arbitrary proration rule with no basis in the doc. Deducting tax first
+ * (unchanged from every earlier task's behavior) and then warehouse
+ * maintenance out of the remainder is the simpler, more conservative choice
+ * — it also means this addition is PURELY ADDITIVE: every existing tax
+ * deduction/`TaxRecord` field/`taxDebt` behavior above is completely
+ * untouched by this section.
  */
 
 import { CONFIG } from './config'
+import { calcWarehouseAnnualBill } from './warehouse'
 import type { BankAccount, CATier, CityId, GameState, TaxRecord } from './types'
 
 /**
@@ -182,6 +215,12 @@ function computeTaxOwed(taxableBase: number, tier: CATier): number {
  *   6. Resets `realizedProfitThisFiscalYear`/`depositInterestThisFiscalYear`
  *      to `0` for the new fiscal year, regardless of whether tax was
  *      actually charged.
+ *   7. (T049/T050) Bills `calcWarehouseAnnualBill(state)` (warehouse floor
+ *      maintenance + insurance premiums) from whatever cash/deposits remain
+ *      after step 3 — same cash-then-deposits deduction order, same
+ *      `Object.keys` iteration — with any shortfall becoming/topping up the
+ *      SEPARATE, Small-rate `state.warehouseMaintenanceDebt` bucket. Never
+ *      waived (see file header).
  *
  * Pure function: returns a NEW `GameState`; never mutates its argument.
  */
@@ -247,11 +286,50 @@ export function runYearEnd(state: GameState): GameState {
     forcedLoanTriggered,
   }
 
+  // ---------------------------------------------------------------------
+  // T049/T050: warehouse maintenance + insurance, billed from whatever
+  // cash/deposits remain AFTER the tax deduction above — see file header's
+  // "T049/T050 addition" section for the full ordering rationale. Uses the
+  // exact same cash-then-deposits-then-forced-debt mechanism as tax itself,
+  // just against a SEPARATE Small-rate debt bucket
+  // (`state.warehouseMaintenanceDebt`, never `state.taxDebt`).
+  // ---------------------------------------------------------------------
+  const warehouseBill = calcWarehouseAnnualBill(state)
+
+  let warehouseRemaining = warehouseBill
+  const warehouseCashPayment = Math.min(newCash, warehouseRemaining)
+  const cashAfterWarehouseBill = newCash - warehouseCashPayment
+  warehouseRemaining -= warehouseCashPayment
+
+  const bankAccountsAfterWarehouseBill: Record<CityId, BankAccount> = { ...newBankAccounts }
+  if (warehouseRemaining > 0) {
+    for (const cityId of Object.keys(newBankAccounts)) {
+      if (warehouseRemaining <= 0) break
+      const account = newBankAccounts[cityId]
+      if (!account || account.depositBalance <= 0) continue
+
+      const depositPayment = Math.min(account.depositBalance, warehouseRemaining)
+      bankAccountsAfterWarehouseBill[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
+      warehouseRemaining -= depositPayment
+    }
+  }
+
+  const warehouseShortfall = warehouseRemaining
+  let newWarehouseMaintenanceDebt = state.warehouseMaintenanceDebt ?? null
+  if (warehouseShortfall > 0) {
+    newWarehouseMaintenanceDebt = {
+      principal: (newWarehouseMaintenanceDebt?.principal ?? 0) + warehouseShortfall,
+      accruedInterest: newWarehouseMaintenanceDebt?.accruedInterest ?? 0,
+      startDay: newWarehouseMaintenanceDebt?.startDay ?? state.day,
+    }
+  }
+
   return {
     ...state,
-    cash: newCash,
-    bankAccounts: newBankAccounts,
+    cash: cashAfterWarehouseBill,
+    bankAccounts: bankAccountsAfterWarehouseBill,
     taxDebt: newTaxDebt,
+    warehouseMaintenanceDebt: newWarehouseMaintenanceDebt,
     taxHistory: [...state.taxHistory, record],
     realizedProfitThisFiscalYear: 0,
     depositInterestThisFiscalYear: 0,
