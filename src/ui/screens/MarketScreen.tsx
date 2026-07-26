@@ -2,9 +2,8 @@ import { useGameStore } from '../store/gameStore'
 import { cargoUsed } from '../../engine/cargo'
 import { GOODS } from '../../engine/data/goods'
 import { CoinIcon } from '../components/PixelIcons'
-import type { Screen } from '../App'
 
-export default function MarketScreen({ navigate }: { navigate: (screen: Screen) => void }) {
+export default function MarketScreen() {
   const game = useGameStore((s) => s.game)
   const buy = useGameStore((s) => s.buy)
   const sell = useGameStore((s) => s.sell)
@@ -19,12 +18,7 @@ export default function MarketScreen({ navigate }: { navigate: (screen: Screen) 
   const remainingCapacity = game.cargoCapacity - cargoUsed(game)
 
   return (
-    <div className="screen">
-      <button className="secondary" onClick={() => navigate('city')}>
-        ← Back
-      </button>
-      <h1>Market</h1>
-
+    <>
       {tradeableGoods.map((good) => {
         const price = game.priceStates[game.currentCity]?.[good.id]?.currentPrice
         const holding = game.cargo[good.id]
@@ -45,7 +39,7 @@ export default function MarketScreen({ navigate }: { navigate: (screen: Screen) 
               <span>Owned: {holding?.qty ?? 0}</span>
               <span>Avg cost: {holding ? `$${holding.avgBuyCost.toFixed(2)}` : '—'}</span>
             </div>
-            <div className="row">
+            <div className="row trade-controls">
               <div className="stepper">
                 <span className="muted">Buy</span>
                 <button disabled={!price || maxBuy < 1} onClick={() => buy(good.id, 1)}>
@@ -74,6 +68,6 @@ export default function MarketScreen({ navigate }: { navigate: (screen: Screen) 
           </div>
         )
       })}
-    </div>
+    </>
   )
 }

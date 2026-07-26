@@ -277,12 +277,13 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: A store exposes current `GameState` plus dispatchable actions that call into `/src/engine` functions only (no game logic duplicated in the store — it's a thin adapter). Actions cover trade, travel, stay, deposit/withdraw, loan take/repay, default resolution, CA hiring, save/load. A smoke test (React Testing Library or plain unit test against the store's exported hook) dispatches a buy action and asserts cash decreases.
   - Mobile/desktop note: N/A — state/store wiring layer only, no visual rendering; must not assume desktop-only interaction patterns since every screen that consumes it is mobile-first (§1/§12).
 
-- [ ] **T035 — App shell & screen navigation (mobile-first layout container)**
-  - Doc references: §1 (360×740 mobile-portrait target), §12
+- [x] **T035 — App shell: persistent scene container + popup layer (mobile-first)**
+  - Doc references: §1 (360×740 mobile-portrait target), §12 (updated 2026-07-26 — persistent-scene UI model, supersedes the earlier flat screen-router)
   - Dependencies: T034
-  - File path hints: `/src/ui/App.tsx`, `/src/ui/navigation/`
-  - Acceptance criteria: A root component renders a fixed-aspect mobile-portrait container (360×740 baseline, responsive scaling for larger viewports) with a simple screen-router (state-based or a lightweight router) capable of switching between the 8 v1 screens (stubs acceptable for now — real screens land in T036–T043). No screen content is rendered yet beyond placeholders.
+  - File path hints: `/src/ui/App.tsx`, `/src/ui/scene/` (new — canvas mount point), `/src/ui/components/PopupLayer.tsx` (new)
+  - Acceptance criteria: A root component renders a fixed-aspect mobile-portrait container (360×740 baseline, responsive scaling for larger viewports) containing (a) a persistent scene mount point that stays mounted across the whole session once a game exists, and (b) a popup/panel layer that can show/hide Market/Bank/Newspaper/Travel/Year-end/Game-over content on top of the scene without unmounting it. The Title screen (§12 item 1) remains a true standalone screen shown before a scene exists. Stubs acceptable for the scene's contents (real hub scene lands in T037); this task only needs the container/layering structure to work.
   - Mobile/desktop note: Primary target is mobile-portrait browsers at 360×740 per §1/§12; desktop must render as a responsive fallback (e.g., centered/scaled mobile viewport) — never a desktop-first redesign.
+  - Note: earlier code in this repo (`App.tsx`, `screens/*.tsx`) implements the pre-2026-07-26 flat screen-router model instead — expect to significantly rework or replace it, not extend it.
 
 ---
 
@@ -295,12 +296,19 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: Renders difficulty selector (Noob/Pro/Expert) with §3's starting values previewed, a "New Game" action that seeds a fresh `GameState`, and a "Continue" action enabled only when a saved game exists (via T032). Placeholder art (colored rectangles/emoji) per §12's stated art-pass deferral.
   - Mobile/desktop note: Primary target mobile-portrait 360×740; buttons sized for touch (minimum ~44px tap targets); desktop is a secondary responsive fallback only.
 
-- [ ] **T037 — Screen 2: City screen (hub)**
-  - Doc references: §12 (screen 2)
-  - Dependencies: T035, T015, T005
-  - File path hints: `/src/ui/screens/CityScreen.tsx`
-  - Acceptance criteria: Renders pixel-skyline placeholder, buttons to Market/Bank/Newspaper/Travel/Stay, an Informant button placeholder (shown only when the current city qualifies per T020's gating — wired for real once T039 lands), and a top bar showing day/cash/cargo-used/city name. Note in code: this file will be modified again by T039 (Informant hookup) and T058 (Hotel screen's "buy hotel here" button) — keep the button layout extensible.
-  - Mobile/desktop note: Primary target mobile-portrait 360×740; hub buttons must be reachable one-handed (bottom-anchored layout recommended); desktop secondary fallback only.
+- [x] **T037 — Screen 2: Persistent hub scene (replaces the old flat "City screen")**
+  - Doc references: §12 (screen 2, rewritten 2026-07-26)
+  - Dependencies: T035, T015, T005, T069
+  - File path hints: `/src/ui/scene/HubScene.tsx` (new), `/src/ui/components/Hud.tsx` (new)
+  - Acceptance criteria: Renders a full-screen pixelated background for the current city (placeholder background acceptable — real per-city art is a later pass per §12) with the character sprite from T069 standing/idling in the single starting room (room-growth mechanic is explicitly OUT of this task — §12 flags the room-growth-vs-Warehouse reconciliation as an open design question not yet decided; ship one static room only). HUD overlay on top of the scene, not a separate screen: top-left city name, top-right cash balance + owned commodities, bottom-left bank icon opening the Bank popup (via T035's popup layer), bottom-right market icon opening the Market popup as a list. Newspaper/Travel/Stay/Informant entry points also live in this HUD (exact icon/menu placement left to implementation). Note in code: this file will be modified again by T039 (Informant hookup) and T058 (Hotel screen's "buy hotel here" button) — keep the HUD extensible.
+  - Mobile/desktop note: Primary target mobile-portrait 360×740; HUD icons must be reachable one-handed (bottom corners recommended, matches §12); desktop secondary fallback only.
+
+- [x] **T069 — PixiJS scene engine + character sprite integration**
+  - Doc references: §12 ("Implementation approach", "Character asset")
+  - Dependencies: T035
+  - File path hints: `/src/ui/scene/` (new — PixiJS `<canvas>` mount, `AnimatedSprite` setup), `package.json` (add `pixi.js`)
+  - Acceptance criteria: A reusable scene component mounts a PixiJS `Application` into a container `<canvas>` sized to the 360×740 (scaled) frame, cleans up on unmount (no leaked WebGL context on screen/route changes), and exposes a way to place/animate sprites on it. The character sprite uses the CraftPix "Free City Trader Character" pack (§12 has the download link and confirmed license — free commercial use, no attribution required, don't redistribute the raw files) with at least an idle animation working end-to-end (walk-cycle wiring can follow later once movement is designed). React (HUD, popups) continues to render in the DOM above/around this canvas — this task does not move any UI logic into PixiJS.
+  - Mobile/desktop note: Verify canvas scaling holds at 360×740 and on a larger desktop fallback viewport; canvas must not overflow or blur at either size.
 
 - [ ] **T038 — Screen 3: Market**
   - Doc references: §12 (screen 3)
@@ -308,6 +316,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - File path hints: `/src/ui/screens/MarketScreen.tsx`, `/src/ui/components/CapacityBar.tsx`
   - Acceptance criteria: Lists unlocked commodities with live price (current city only), owned qty, avg buy cost, and +1/+10/+max buy/sell steppers wired to the store's trade action. A reusable `CapacityBar` component is created here (used for cargo fill) and explicitly designed for reuse by the Warehouse screen later (T052) for its "same bar-fill visual language" requirement per §14.
   - Mobile/desktop note: Primary target mobile-portrait 360×740; steppers must be large-tap-friendly; desktop secondary fallback only.
+  - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
 - [ ] **T039 — Screen 4: Newspaper (+ Informant)**
   - Doc references: §12 (screen 4), §7 (resolution stories, source styling), §7 (Insider information)
@@ -315,6 +324,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - File path hints: `/src/ui/screens/NewspaperScreen.tsx`, `/src/ui/screens/InformantModal.tsx`
   - Acceptance criteria: Full-screen paper renders 2–4 stories with distinct visual source styling (wire vs. gossip), with yesterday's resolution stories pinned at the top per §7's non-negotiable requirement. The Informant button added as a placeholder in T037 now opens a real modal/subview offering a tip purchase (only rendered when the current city qualifies), wired to T020's engine function.
   - Mobile/desktop note: Primary target mobile-portrait 360×740, full-screen scrollable paper layout; desktop secondary fallback only.
+  - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
 - [ ] **T040 — Screen 5: Bank**
   - Doc references: §12 (screen 5), §9, §10 (CA hiring "in season")
@@ -322,6 +332,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - File path hints: `/src/ui/screens/BankScreen.tsx`
   - Acceptance criteria: Shows deposits (deposit/withdraw controls), loan offer/repay (respecting the 1-loan-per-bank / 3-bank-concurrent rule), CA hiring section shown only at Medium+ bank cities, and an account book (transaction history or balance summary). If T024 flags an "awaiting default decision" state, this screen presents the three-choice UI and calls `resolveDefault`.
   - Mobile/desktop note: Primary target mobile-portrait 360×740; desktop secondary fallback only.
+  - Note (2026-07-26, §12 rewrite): opened via the HUD's bank icon (bottom-left, T037), renders inside T035's popup layer over the persistent hub scene — not as a full-page screen swap.
 
 - [ ] **T041 — Screen 6: Travel map**
   - Doc references: §12 (screen 6), §4
@@ -329,13 +340,15 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - File path hints: `/src/ui/screens/TravelScreen.tsx`
   - Acceptance criteria: Lists unlocked cities with fare + days computed via T007/T013, and a tooltip/expand showing each city's last-seen prices + staleness (never live remote prices, per §6). Selecting a destination dispatches the travel action.
   - Mobile/desktop note: Primary target mobile-portrait 360×740, scrollable city list; desktop secondary fallback only.
+  - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
 - [ ] **T042 — Screen 7: Year-end tax statement**
   - Doc references: §12 (screen 7), §10
   - Dependencies: T035, T030, T031
   - File path hints: `/src/ui/screens/YearEndScreen.tsx`
-  - Acceptance criteria: Shown automatically when `runYearEnd` fires; displays profit breakdown, CA effect (rate/cap applied), and tax paid (or forced-loan notice if a shortfall occurred). Dismissing returns to the City screen.
+  - Acceptance criteria: Shown automatically when `runYearEnd` fires; displays profit breakdown, CA effect (rate/cap applied), and tax paid (or forced-loan notice if a shortfall occurred). Dismissing returns to the hub scene.
   - Mobile/desktop note: Primary target mobile-portrait 360×740; desktop secondary fallback only.
+  - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
 - [ ] **T043 — Screen 8: Game over / score screen**
   - Doc references: §12 (screen 8), §1, §9 (bankruptcy declare option)
@@ -343,6 +356,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - File path hints: `/src/ui/screens/GameOverScreen.tsx`
   - Acceptance criteria: Triggered by declaring bankruptcy (T024) or a forced default game-over; shows peak net worth, days survived, a net-worth-over-time graph (placeholder chart acceptable), and the local top-10 high-score table (via T033), with the current run's score recorded before display.
   - Mobile/desktop note: Primary target mobile-portrait 360×740; desktop secondary fallback only.
+  - Note (2026-07-26, §12 rewrite): this one may remain a true full-screen takeover (run has ended) rather than a popup — confirm against §12 at implementation time.
 
 ---
 

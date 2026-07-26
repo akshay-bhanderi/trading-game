@@ -256,8 +256,10 @@ A competent Pro-mode player, no save-scumming:
 
 ## 12. UI Screens (mobile portrait, pixel style)
 
+**UI model (superseded from the original flat screen-router):** a persistent pixel-art scene, not a stack of full-page screens. The player's current city/building is always visible; screens 3–8 below render as popups/panels over that scene instead of full-page navigation swaps. Only the Title screen (1) is a true standalone screen, shown before a scene exists. A first implementation pass built screens 1–4/6 as a flat CSS-pixel-bordered screen-router (chunky borders, pixel font, no persistent scene) — that pass is superseded by this direction; do not extend that pattern to new screens.
+
 1. **Title / difficulty select / continue**
-2. **City screen (hub):** pixel skyline, buttons → Market, Bank, Newspaper, Travel, Stay, Informant (if available). Top bar: day, cash, cargo used, city name.
+2. **Persistent scene (hub, replaces the old flat "City screen"):** full-screen pixelated background, per city. A pixel-art businessman character stands/animates inside the player's current room (see **Rooms & character** below). HUD is overlaid on the scene, not a separate screen: top-left = city name, top-right = cash balance + owned commodities, bottom-left = bank icon (opens the Bank popup), bottom-right = market icon (opens the Market popup as a list). Newspaper/Travel/Stay/Informant are reached from this same persistent HUD (exact icon/menu placement TBD at implementation time).
 3. **Market:** commodity list — price, owned qty, avg buy cost, buy/sell steppers (+1/+10/+max).
 4. **Newspaper:** full-screen paper, 2–4 stories with source styling; yesterday's resolution stories at top.
 5. **Bank:** deposits, loan offer/repay, CA hiring (in season), account book.
@@ -265,10 +267,20 @@ A competent Pro-mode player, no save-scumming:
 7. **Year-end tax statement:** profit breakdown, CA effect, tax paid.
 8. **Game over / score screen:** peak net worth, days, graph of net worth over time, local high-score table.
 9. **Warehouse screen** (§14): vertical building elevation, one row per floor, each floor its own fill/empty capacity bar stacked into one building-height meter; buy-next-floor button inline.
-10. **Real Estate / Hotels screen** (§15): list of owned hotels by city with tier, daily revenue, and an upgrade button; "buy hotel here" available from the City screen when not yet owned.
+10. **Real Estate / Hotels screen** (§15): list of owned hotels by city with tier, daily revenue, and an upgrade button; "buy hotel here" available from the hub scene when not yet owned.
 11. **Aviation / Fleet screen** (§16): list of owned planes, each with a status toggle (Idle / Leased Monthly / Leased Annual / Personal use) and running income/maintenance totals.
 
-Placeholder art first (colored rectangles + emoji). Pixel assets are a later pass: Kenney.nl packs + AI-generated icons.
+**Rooms & character:** the player starts in one room. As they grow, additional rooms are added, stacked vertically on top of each other — a building growing floor by floor. Room 1 (the starting room) displays the game's own name/brand as in-scene signage. Growth trigger (net worth threshold, warehouse floors, or something else) is not yet decided.
+
+**Open design question — reconcile before implementing either:** this room-growth mechanic and §14's Warehouse floor-elevation visual are two building-cross-section systems specified somewhat independently. Decide whether they're the same building, two separate buildings, or whether §14's visual is retired in favor of this one.
+
+**Implementation approach:** the scene (background, rooms, character) renders on a `<canvas>` via a lightweight 2D engine — **PixiJS**, chosen over Phaser/Kaboom since nothing here needs physics or platforming, just layered sprite animation. React continues to own the HUD and all popups/panels drawn on top of the canvas; this is not a rewrite away from React, only the scene layer moves to canvas.
+
+**Character asset:** [CraftPix "Free City Trader Character"](https://free-game-assets.itch.io/free-city-trader-character-sprite-sheets-pixel-art/purchase) pixel sprite pack — three city-merchant characters, idle/dialogue/movement animations, PNG+PSD. License confirmed: free for unlimited personal/commercial use, no royalties, no attribution required; only restriction is no reselling/redistributing the raw files as a standalone pack.
+
+**Background/room art:** not yet sourced. Later pass — candidates are a CC0 pack or AI-generated art, same sourcing plan as the rest of this section's placeholder-art fallback.
+
+Non-hub popups (Market/Bank/Newspaper/etc.) may still ship with simple placeholder art initially. Pixel assets beyond the character are a later pass: Kenney.nl packs + AI-generated icons.
 
 ---
 

@@ -6,3 +6,8 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .DS_Store
+
+# Raw itch.io asset download (PSDs, coupon art, unused trader variants) —
+# only the specific PNG frames we actually use are committed, under
+# public/assets/character/. See public/assets/character/LICENSE.txt.
+/assets-src/

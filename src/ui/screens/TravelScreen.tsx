@@ -2,9 +2,8 @@ import { useGameStore } from '../store/gameStore'
 import { calcFare, getTravelDays } from '../../engine/travel'
 import { cargoUsed } from '../../engine/cargo'
 import { CITIES } from '../../engine/data/cities'
-import type { Screen } from '../App'
 
-export default function TravelScreen({ navigate }: { navigate: (screen: Screen) => void }) {
+export default function TravelScreen({ onClose }: { onClose: () => void }) {
   const game = useGameStore((s) => s.game)
   const travelTo = useGameStore((s) => s.travelTo)
   if (!game) return null
@@ -15,12 +14,7 @@ export default function TravelScreen({ navigate }: { navigate: (screen: Screen) 
   )
 
   return (
-    <div className="screen">
-      <button className="secondary" onClick={() => navigate('city')}>
-        ← Back
-      </button>
-      <h1>Travel</h1>
-
+    <>
       {destinations.map((city) => {
         const days = getTravelDays(game.currentCity, city.id)
         const fare = calcFare(days, city.tier, cargoUsedPct)
@@ -42,7 +36,7 @@ export default function TravelScreen({ navigate }: { navigate: (screen: Screen) 
             <button
               onClick={() => {
                 travelTo(city.id)
-                navigate('city')
+                onClose()
               }}
             >
               Travel
@@ -50,6 +44,6 @@ export default function TravelScreen({ navigate }: { navigate: (screen: Screen) 
           </div>
         )
       })}
-    </div>
+    </>
   )
 }
