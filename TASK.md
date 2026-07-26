@@ -216,7 +216,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `newsBotStep(state, rng)` reads the current day's newspaper (T018) to bias buy/sell/travel decisions toward rumored price moves, and opportunistically takes/repays loans (T023) to fund larger trades when a high-confidence wire rumor is active. Smoke test runs 90 days without throwing.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T028 — Bot harness runner + health-check assertions**
+- [x] **T028 — Bot harness runner + health-check assertions**
   - Doc references: §11 (harness description, health checks)
   - Dependencies: T025, T026, T027, T004
   - File path hints: `/src/engine/harness/botHarness.ts`, `/src/engine/harness/botHarness.test.ts`

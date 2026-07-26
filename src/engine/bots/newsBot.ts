@@ -302,6 +302,13 @@ function applySignalTrades(state: GameState, rng: Rng, signals: RumorSignal[]): 
     }
   }
 
+  // General profit-taking sell — see `sellProfitableHoldings`'s own doc
+  // comment for why this exists: without it, ANY position bought on an UP
+  // rumor or the baseline fallback (i.e. every position NOT later covered by
+  // a DOWN signal on the exact same good) was never sold for the rest of the
+  // run, permanently locking up cash and cargo space.
+  working = sellProfitableHoldings(working)
+
   const bestUp = pickBestUpSignal(rng, upSignals)
 
   if (bestUp) {
@@ -311,6 +318,72 @@ function applySignalTrades(state: GameState, rng: Rng, signals: RumorSignal[]): 
   }
 
   return working
+}
+
+/**
+ * ROOT-CAUSE FIX (bot-harness regression, T028): before this function
+ * existed, the ONLY sell path in this file was the DOWN-signal branch above
+ * — a good was sold when a rumor said its price would FALL. But the bot's
+ * whole buying strategy (`buyIntoRumor`, `buyCheapestAvailable`) is about
+ * betting a price will RISE (UP rumor) or is cheap right now, i.e. exactly
+ * the goods that were NEVER covered by a DOWN signal on that same good. In
+ * practice this meant almost every position the bot ever opened was bought
+ * and then held forever: `state.cargo` filled up with day-2/3 purchases that
+ * sat completely untouched for the rest of a 90-day run, cash got drained to
+ * near-zero by the travel fares `decideEndOfDay` kept paying to chase
+ * "better remembered prices" it then never actually cashed in at, and net
+ * worth was left to drift passively with whatever the frozen cargo's market
+ * price happened to do — flat/declining instead of compounding. Confirmed
+ * via day-by-day trace (seeds 0 and 2, `makeFreshGameState`): cash pinned at
+ * $10-16 by ~day 20-23, identical cargo held bought-and-never-sold through
+ * day 90, net worth just oscillating with price noise on that frozen cargo.
+ *
+ * This closes the loop the file header already describes ("carry it to a
+ * city with a better remembered price") with the cash-in step that was
+ * missing: sell a currently-held good HERE, today, whenever (a) the local
+ * price is at/above its cost basis (no fire-sale losses, same rule the
+ * DOWN-signal sell already uses) AND (b) no other unlocked city's
+ * remembered price beats it by more than `TRAVEL_MARGIN_THRESHOLD` — i.e.
+ * exactly the cities `decideEndOfDay`'s travel decision would NOT bother
+ * relocating for. If a better city genuinely is remembered, the position is
+ * deliberately left alone here so the travel step below can carry it there
+ * instead; once it arrives (or if it never finds anywhere better), this same
+ * check on a later day sells it for real. Exported for direct unit testing.
+ */
+export function sellProfitableHoldings(state: GameState): GameState {
+  let working = state
+
+  for (const goodId in working.cargo) {
+    const holding = working.cargo[goodId]
+    if (!holding || holding.qty <= 0) continue
+
+    const price = currentPrice(working, goodId)
+    if (price === null) continue
+    if (price < holding.avgBuyCost) continue // no fire-sale losses
+
+    if (hasBetterRememberedDestination(working, goodId, price)) continue // hold — travel step will carry it there
+
+    working = sell(working, goodId, holding.qty, price)
+  }
+
+  return working
+}
+
+/**
+ * True if some OTHER unlocked city's remembered (`lastSeenPrice`) price for
+ * `goodId` beats `localPrice` by more than `TRAVEL_MARGIN_THRESHOLD` — the
+ * same comparison `findBestRememberedSellDestination` uses to decide whether
+ * to travel, kept in sync deliberately so `sellProfitableHoldings` never
+ * sells out from under a position `decideEndOfDay` is about to travel for.
+ */
+function hasBetterRememberedDestination(state: GameState, goodId: GoodId, localPrice: number): boolean {
+  for (const cityId of state.unlockedCityIds) {
+    if (cityId === state.currentCity) continue
+    const remembered = state.priceStates[cityId]?.[goodId]?.lastSeenPrice
+    if (remembered === undefined || remembered <= 0) continue
+    if (remembered / localPrice > TRAVEL_MARGIN_THRESHOLD) return true
+  }
+  return false
 }
 
 /** Prefers a high-confidence (wire) signal over a low-confidence (gossip)
