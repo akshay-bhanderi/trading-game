@@ -16,7 +16,7 @@
  * `advanceDay` — the single function every day-advancing action funnels
  * through
  * ---------------------------------------------------------------------------
- * `advanceDay(state: GameState): GameState` does exactly three things, IN
+ * `advanceDay(state: GameState): GameState` does exactly four things, IN
  * THIS ORDER:
  *   1. Increments `state.day` to `newDay = state.day + 1`.
  *   2. Recomputes every city x good price FOR `newDay` (via T008's
@@ -24,6 +24,12 @@
  *      `priceStates[city.id][good.id]`.
  *   3. Updates net worth / peak net worth (via T009's `updatePeakNetWorth`),
  *      so cargo valuation reflects the NEW day's prices, not the old ones.
+ *   4. (T021) Maybe recomputes the hidden trader rank (§8) via
+ *      `maybeRecomputeRank` — AFTER step 3, since the rank formula consumes
+ *      net worth. A no-op unless `recomputeCadenceDays` (7) days have
+ *      elapsed since the rank was last computed. See rank.ts for the
+ *      formula/cadence/caching details — out of scope for this file beyond
+ *      the single wiring call at the end of this function.
  *
  * ---------------------------------------------------------------------------
  * ARCHITECTURAL DECISION — day-increment-then-recompute sequencing
@@ -243,6 +249,8 @@ import { GOODS } from './data/goods'
 import { computePrice } from './priceEngine'
 import { createRng } from './rng'
 import { updatePeakNetWorth } from './netWorth'
+import { maybeRecomputeRank } from './rank'
+import { accrueDepositInterest } from './bank/deposits'
 import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
 import type { GameState, GoodId, PriceState } from './types'
 
@@ -346,5 +354,22 @@ export function advanceDay(state: GameState): GameState {
         : [...(stateAfterEvents.pendingResolutions ?? []), ...resolutions],
   }
 
-  return updatePeakNetWorth(advanced)
+  // T021: recompute the hidden trader rank (§8) AFTER net worth is updated
+  // above, since the rank formula depends on net worth — a no-op unless at
+  // least CONFIG.rank.recomputeCadenceDays (7) days have elapsed since the
+  // last computation. See rank.ts's `maybeRecomputeRank` for the full
+  // cadence/caching rationale.
+  const withRank = maybeRecomputeRank(updatePeakNetWorth(advanced))
+
+  // ---------------------------------------------------------------------
+  // T022 addition (separate, additive step — deliberately kept independent
+  // of the T021 rank-recompute line above rather than folded into it, to
+  // avoid the two concurrent edits colliding on the same line/expression).
+  // Compounds per-city deposit interest (§9 "Deposits") once per day-tick —
+  // see /src/engine/bank/deposits.ts's `accrueDepositInterest` file header
+  // for the full rate-lookup/compounding rationale. Order relative to the
+  // rank recompute above doesn't matter (deposit interest isn't a rank
+  // formula input), so this simply runs last.
+  // ---------------------------------------------------------------------
+  return accrueDepositInterest(withRank)
 }

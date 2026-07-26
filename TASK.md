@@ -145,14 +145,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `generateDailyPaper(state, rng)` produces 2–4 stories per day mixing scheduled-event rumors, filler, and deliberate false rumors, each tagged with a source style ("wire" ≈80% accurate, "gossip" ≈50%, values from config). The morning after any event's due date, a resolution story explaining why it fired or fizzled is always included (unit test enforces this is non-optional — every resolved event produces exactly one resolution story the next day). When a city unlocks (via T010), a headline story is generated that day. Unit test: over many simulated days, resolution stories appear 1:1 with resolved events.
   - Mobile/desktop note: N/A — engine only, no UI (consumed by UI in T039).
 
-- [ ] **T019 — Fog of wealth (rumor specificity scaling by net worth)**
+- [x] **T019 — Fog of wealth (rumor specificity scaling by net worth)**
   - Doc references: §7 (Fog of wealth)
   - Dependencies: T018, T009
   - File path hints: `/src/engine/fogOfWealth.ts`
   - Acceptance criteria: Rumor text generation applies exact city+good detail below $50k net worth, good+region only from $50k–$500k, and directional-only phrasing above $500k, per the three tiers in §7. Unit test asserts the same underlying rumor event produces progressively vaguer text as a mocked net worth increases across the three bands.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T020 — Insider information / Informant system**
+- [x] **T020 — Insider information / Informant system**
   - Doc references: §7 (Insider information), §9 (bank size tiers, for Medium+ gating)
   - Dependencies: T018, T009, T005
   - File path hints: `/src/engine/informant.ts`
@@ -163,14 +163,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 3 — Rank & Banking
 
-- [ ] **T021 — Hidden trader rank engine**
+- [x] **T021 — Hidden trader rank engine**
   - Doc references: §8
   - Dependencies: T002, T009, T012, T015
   - File path hints: `/src/engine/rank.ts`
   - Acceptance criteria: `computeRank(state)` implements the exact formula (0.5×log10(netWorth+1) + 0.3×log10(cumulativeTradeVolume+1) + 1.5×repaymentRecord[-2,+2] + 0.2×log10(daysSurvived+1)), clamps floor to [1,10], weights read from config. Recomputation is wired to occur every 7 days via the turn loop (T015 hook or an explicit `maybeRecomputeRank(state)` called from `advanceDay`). Rank value is never exposed by any exported "display" helper (acceptance check: no function in this file formats rank for direct UI display — that's a deliberate design constraint, per §8, not an oversight). Unit test verifies the formula against hand-computed example inputs.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T022 — Bank deposits (per-city, compounding interest)**
+- [x] **T022 — Bank deposits (per-city, compounding interest)**
   - Doc references: §9 (Deposits)
   - Dependencies: T002, T003, T005
   - File path hints: `/src/engine/bank/deposits.ts`
