@@ -131,7 +131,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: All 11 base event types from §7's table are data-defined (affected good(s), city-or-global scope, multiplier range, duration). `scheduleEvent(state, rng)` schedules an event 2–4 days in the future with a hidden truth flag. Events are stored in `state` so the daily tick (T015) can check for events becoming due. Unit test: scheduling produces an event whose fire date is strictly 2–4 days after the current day.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T017 — Event resolution (fire/fizzle) + price multiplier application**
+- [x] **T017 — Event resolution (fire/fizzle) + price multiplier application**
   - Doc references: §7 (pipeline steps 3–5)
   - Dependencies: T016, T008
   - File path hints: `/src/engine/events/resolution.ts`

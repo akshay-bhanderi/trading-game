@@ -178,17 +178,43 @@
  *     unlocked; that gating is T010/UI's job, not this file's).
  *
  * ---------------------------------------------------------------------------
- * `activeEvents` — not wired yet (T016/T017 not built)
+ * `activeEvents` — wired in T017
  * ---------------------------------------------------------------------------
- * `computePrice`'s optional `activeEvents` parameter is left unset (neutral,
- * multiplier 1) here. `state.activeEvents: Event[]` already exists on
- * `GameState` (T002), but turning a full `Event` record into the
- * `PriceEventEffect[]` shape `computePrice` expects, PER city/good/day, is
- * T016/T017's job (the event scheduling/resolution engine, not yet built).
- * When those land, this file's per-city/good loop is the natural place to
- * plug in "look up any active event effects for (city, good, newDay) and
- * pass them as `computePrice`'s 7th argument" — everything else about this
- * function's shape stays the same.
+ * Two things happen here now, both from `events/resolution.ts` (T017):
+ *   1. Before computing ANY prices for `newDay`, `resolveDueEvents` is
+ *      called against a state whose `day` is already `newDay` — this
+ *      resolves (fire-vs-fizzle, per §7 step 4) every event whose
+ *      `scheduledFireDay === newDay` and isn't already resolved. Doing this
+ *      FIRST means an event due today already has its `fired`/
+ *      `resolvedMultiplier`/`activeUntilDay` fields populated in time for
+ *      THIS SAME day's price computation below — not one day late.
+ *   2. For each city/good pair, `getActiveEventEffectsFor(city, good,
+ *      newDay, activeEvents)` looks up every currently-fired event whose
+ *      active window covers `newDay` and whose `scope`/`affectedGoodIds`
+ *      match that pair, turning them into the `PriceEventEffect[]` passed as
+ *      `computePrice`'s 7th argument (previously always left unset/neutral).
+ *
+ * A separate, independently-derived RNG stream (`createEventResolutionRng`,
+ * same `(seed, day)`-hash technique as `createDayRng` below but with its own
+ * purpose tag) is used for event resolution's duration/multiplier draws,
+ * rather than reusing the same `rng` instance that feeds the per-city/good
+ * price-noise loop. This keeps the two concerns decoupled: the number of
+ * RNG draws event resolution happens to consume on a given day (0, 1, or
+ * several, depending how many events are due) never shifts which noise
+ * values any city/good pair's `computePrice` call draws that day, and vice
+ * versa — each stream is deterministic purely from `(seed, day)`,
+ * independent of the other.
+ *
+ * `resolveDueEvents`'s second return value (`resolutions:
+ * EventResolution[]`) is intentionally NOT threaded any further by this
+ * file — `GameState` has no field yet to hold "pending resolution stories"
+ * (that lands with T018's newspaper engine, which is expected to either
+ * call `resolveDueEvents` itself or have `advanceDay` extended to surface
+ * it once a home for it exists on `GameState`). Discarding it here is safe:
+ * the only durable, game-state-visible effect of a resolution — the
+ * resolved `Event` (with `resolved`/`fired`/`resolvedDurationDays`/
+ * `activeUntilDay`/`resolvedMultiplier` set) — is already persisted via
+ * `state.activeEvents`, which IS threaded through.
  *
  * ---------------------------------------------------------------------------
  * Integration with Stay/Travel (T013/T014) — option (a): funnel through
@@ -217,6 +243,7 @@ import { GOODS } from './data/goods'
 import { computePrice } from './priceEngine'
 import { createRng } from './rng'
 import { updatePeakNetWorth } from './netWorth'
+import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
 import type { GameState, GoodId, PriceState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -239,6 +266,13 @@ function createDayRng(seed: number, day: number) {
   return createRng(hashStringToUint32(`${seed}:turnLoopDay:${day}`))
 }
 
+/** Fresh `Rng` for T017's event-resolution draws (duration/multiplier),
+ * deterministic per `(seed, day)` but on a stream independent of
+ * `createDayRng`'s price-noise stream — see file header. */
+function createEventResolutionRng(seed: number, day: number) {
+  return createRng(hashStringToUint32(`${seed}:turnLoopEventResolution:${day}`))
+}
+
 /**
  * Advances the game by exactly one day:
  *   1. Increments `state.day`.
@@ -257,10 +291,18 @@ export function advanceDay(state: GameState): GameState {
   const newDay = state.day + 1
   const rng = createDayRng(state.seed, newDay)
 
+  // T017: resolve any event due TODAY (newDay) before computing prices, so
+  // its fired-vs-fizzled outcome (and, if fired, its concrete
+  // duration/multiplier) is available for THIS SAME day's price computation
+  // below — see file header. `resolveDueEvents` checks `scheduledFireDay ===
+  // state.day`, so the state passed in must already carry `day: newDay`.
+  const eventResolutionRng = createEventResolutionRng(state.seed, newDay)
+  const { state: stateAfterEvents } = resolveDueEvents({ ...state, day: newDay }, eventResolutionRng)
+
   // Only refresh the "physically present" city's staleness fields when the
   // player isn't mid-travel — see file header for why this extra condition
   // (beyond just "is this the current city") is required.
-  const isPresent = state.travelInProgress === null
+  const isPresent = stateAfterEvents.travelInProgress === null
 
   const newPriceStates: Record<string, Record<GoodId, PriceState>> = {}
 
@@ -270,9 +312,18 @@ export function advanceDay(state: GameState): GameState {
 
     for (const good of GOODS) {
       const previousState = previousCityStates?.[good.id]
-      const { nextState, price } = computePrice(city, good, newDay, state.seed, rng, previousState)
+      const eventEffects = getActiveEventEffectsFor(city, good, newDay, stateAfterEvents.activeEvents)
+      const { nextState, price } = computePrice(
+        city,
+        good,
+        newDay,
+        state.seed,
+        rng,
+        previousState,
+        eventEffects,
+      )
 
-      const isPresentHere = isPresent && city.id === state.currentCity
+      const isPresentHere = isPresent && city.id === stateAfterEvents.currentCity
       cityPriceStates[good.id] = isPresentHere
         ? { ...nextState, lastSeenPrice: price, lastSeenDay: newDay }
         : nextState
@@ -282,7 +333,7 @@ export function advanceDay(state: GameState): GameState {
   }
 
   const advanced: GameState = {
-    ...state,
+    ...stateAfterEvents,
     day: newDay,
     priceStates: newPriceStates,
   }

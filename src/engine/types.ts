@@ -167,6 +167,29 @@ export interface Event {
   resolved: boolean
   /** null until resolved; true = fired (prices moved), false = fizzled. */
   fired: boolean | null
+
+  // -------------------------------------------------------------------------
+  // T017 additions (all optional — backward compatible with T016, which
+  // never sets any of these three at schedule time; only
+  // events/resolution.ts's `resolveEvent` sets them, and only when the event
+  // fires). See events/resolution.ts's file header for the full rationale.
+  // -------------------------------------------------------------------------
+
+  /** Concrete duration in days, drawn from `[durationDaysMin,
+   * durationDaysMax]` at RESOLUTION time (not schedule time) via the RNG.
+   * Only set when `fired === true`. */
+  resolvedDurationDays?: number
+  /** Day after which this event's price effect no longer applies —
+   * `scheduledFireDay + resolvedDurationDays`. The effect is active over the
+   * half-open interval `[scheduledFireDay, activeUntilDay)`. Only set when
+   * `fired === true`. */
+  activeUntilDay?: number
+  /** Concrete price multiplier, drawn from `[multiplierMin, multiplierMax]`
+   * at RESOLUTION time via the RNG, held fixed for the whole active window.
+   * This is the exact number that feeds `computePrice`'s
+   * `PriceEventEffect.multiplier` (§6's `eventMultiplier` term). Only set
+   * when `fired === true`. */
+  resolvedMultiplier?: number
 }
 
 // ---------------------------------------------------------------------------
