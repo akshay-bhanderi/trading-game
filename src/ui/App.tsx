@@ -13,6 +13,8 @@ import { cargoUsed } from '../engine/cargo'
 function App() {
   const game = useGameStore((s) => s.game)
   const stay = useGameStore((s) => s.stay)
+  const save = useGameStore((s) => s.save)
+  const justSaved = useGameStore((s) => s.justSaved)
   const [popup, setPopup] = useState<PopupKind>(null)
 
   if (!game) {
@@ -38,6 +40,8 @@ function App() {
         cargoCapacity={game.cargoCapacity}
         onOpen={setPopup}
         onStay={() => stay()}
+        onSave={() => save()}
+        justSaved={justSaved}
       />
 
       {popup === 'market' && (

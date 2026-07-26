@@ -25,6 +25,8 @@ interface HudProps {
   cargoCapacity: number
   onOpen: (popup: Exclude<PopupKind, null>) => void
   onStay: () => void
+  onSave: () => void
+  justSaved: boolean
 }
 
 export default function Hud({
@@ -36,6 +38,8 @@ export default function Hud({
   cargoCapacity,
   onOpen,
   onStay,
+  onSave,
+  justSaved,
 }: HudProps) {
   return (
     <div className="hud">
@@ -71,7 +75,16 @@ export default function Hud({
         <button className="hud-icon-btn" onClick={() => onOpen('market')} aria-label="Market">
           <CoinIcon size={20} />
         </button>
+        <button className="hud-icon-btn" onClick={onSave} aria-label="Save game">
+          <span className="hud-icon-glyph">💾</span>
+        </button>
       </div>
+
+      {justSaved && (
+        <div className="hud-toast" role="status">
+          Saved!
+        </div>
+      )}
     </div>
   )
 }

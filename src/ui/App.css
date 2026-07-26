@@ -160,6 +160,22 @@ body {
   line-height: 1;
 }
 
+.hud-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: rgba(20, 16, 28, 0.85);
+  color: var(--good);
+  border: 2px solid var(--ink);
+  clip-path: var(--pixel-clip);
+  padding: 5px 12px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  animation: pixel-fade-in 0.15s steps(4) both;
+}
+
 /* ---------------------------------------------------------------------
    Popup layer
    --------------------------------------------------------------------- */
@@ -334,6 +350,53 @@ button.secondary {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+/* Difficulty selector (Title screen) — one option per row, radio-style. */
+.difficulty-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.difficulty-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  text-align: left;
+  min-height: 56px;
+}
+
+.difficulty-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.difficulty-row-name {
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+
+.difficulty-row-stats {
+  font-family: var(--font-body);
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.difficulty-row-tagline {
+  font-family: var(--font-body);
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+.difficulty-row--selected {
+  outline: 2px solid var(--ink);
+  outline-offset: -6px;
 }
 
 .row {
