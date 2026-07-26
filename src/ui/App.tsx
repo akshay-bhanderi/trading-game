@@ -4,6 +4,10 @@ import { useGameStore } from './store/gameStore'
 import TitleScreen from './screens/TitleScreen'
 import MarketScreen from './screens/MarketScreen'
 import TravelScreen from './screens/TravelScreen'
+import BankScreen from './screens/BankScreen'
+import NewspaperScreen from './screens/NewspaperScreen'
+import YearEndScreen from './screens/YearEndScreen'
+import GameOverScreen from './screens/GameOverScreen'
 import HubScene from './scene/HubScene'
 import Hud, { type PopupKind } from './components/Hud'
 import PopupLayer from './components/PopupLayer'
@@ -58,6 +62,25 @@ function App() {
     return () => clearTimeout(timer)
   }, [transition])
 
+  // How many of `game.taxHistory`'s entries have already been SHOWN (not
+  // necessarily "acknowledged" in a persisted sense — see below) to the
+  // player this session. An INDEX, not a length-diff/boolean, because a
+  // multi-day Travel jump can make `runYearEnd` fire more than once in a
+  // single store action — an index lets each one surface in turn across
+  // subsequent renders instead of the intermediate one being silently
+  // dropped. Initialized to the ALREADY-EXISTING history length the moment
+  // a game first becomes active this session (fresh game: 0; a loaded save
+  // with prior years: however many it already has) so re-opening an old
+  // save never re-shows year-ends from a previous session.
+  const [acknowledgedYearEnd, setAcknowledgedYearEnd] = useState(0)
+  const wasGameNullRef = useRef(true)
+  useEffect(() => {
+    if (game && wasGameNullRef.current) {
+      setAcknowledgedYearEnd(game.taxHistory.length)
+    }
+    wasGameNullRef.current = !game
+  }, [game])
+
   if (!game) {
     return (
       <div className="app-frame">
@@ -66,8 +89,32 @@ function App() {
     )
   }
 
+  if (game.gameOver) {
+    // T043: a true full-screen takeover (the run has ended) rather than a
+    // popup over the hub scene — matches the doc's own allowance for this
+    // one screen. Score was already recorded by the store the instant
+    // `gameOver` flipped true (see gameStore.ts's `commit`), never here.
+    return (
+      <div className="app-frame">
+        <GameOverScreen />
+      </div>
+    )
+  }
+
   const city = CITIES.find((c) => c.id === game.currentCity)
   const ownedGoodCount = Object.values(game.cargo).filter((holding) => holding.qty > 0).length
+
+  // Automatic overlays take priority over whatever the player manually
+  // opened, in this order: an outstanding default decision (the bank
+  // literally will not let the player ignore it) beats an unshown year-end
+  // statement, which beats the player's own popup choice. Both automatic
+  // cases are pure derivations of `game`/`acknowledgedYearEnd` — recomputed
+  // every render, not tracked via a separate "is this open" flag — so
+  // dismissing one correctly reveals whichever is next without any extra
+  // coordination code.
+  const pendingYearEnd =
+    game.taxHistory.length > acknowledgedYearEnd ? game.taxHistory[acknowledgedYearEnd] : undefined
+  const effectivePopup: PopupKind | 'yearend' = game.awaitingDefaultDecision ? 'bank' : pendingYearEnd ? 'yearend' : popup
 
   return (
     <div className="app-frame app-frame--scene">
@@ -87,24 +134,38 @@ function App() {
 
       {transition && <DayTransition key={transition.key} message={transition.message} variant={transition.variant} />}
 
-      {popup === 'market' && (
+      {effectivePopup === 'market' && (
         <PopupLayer title="Market" onClose={() => setPopup(null)}>
           <MarketScreen />
         </PopupLayer>
       )}
-      {popup === 'travel' && (
+      {effectivePopup === 'travel' && (
         <PopupLayer title="Travel" onClose={() => setPopup(null)}>
           <TravelScreen onClose={() => setPopup(null)} />
         </PopupLayer>
       )}
-      {popup === 'bank' && (
-        <PopupLayer title="Bank" onClose={() => setPopup(null)}>
-          <p className="muted">Coming soon.</p>
+      {effectivePopup === 'bank' && (
+        <PopupLayer
+          title="Bank"
+          // The default-decision prompt (BankScreen renders it internally
+          // whenever game.awaitingDefaultDecision is set) cannot be
+          // dismissed via the X — the player must actually pick one of the
+          // three choices, which is what clears it.
+          onClose={() => {
+            if (!game.awaitingDefaultDecision) setPopup(null)
+          }}
+        >
+          <BankScreen />
         </PopupLayer>
       )}
-      {popup === 'newspaper' && (
+      {effectivePopup === 'newspaper' && (
         <PopupLayer title="Newspaper" onClose={() => setPopup(null)}>
-          <p className="muted">Coming soon.</p>
+          <NewspaperScreen />
+        </PopupLayer>
+      )}
+      {effectivePopup === 'yearend' && pendingYearEnd && (
+        <PopupLayer title="Year-End" onClose={() => setAcknowledgedYearEnd((n) => n + 1)}>
+          <YearEndScreen record={pendingYearEnd} onDismiss={() => setAcknowledgedYearEnd((n) => n + 1)} />
         </PopupLayer>
       )}
     </div>

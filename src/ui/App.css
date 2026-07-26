@@ -583,6 +583,147 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------
+   Newspaper + Informant (T039)
+   --------------------------------------------------------------------- */
+
+.newspaper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.newspaper-informant-btn {
+  align-self: flex-start;
+}
+
+.newspaper-story {
+  border: 3px solid var(--ink);
+  padding: 10px 12px;
+  background: var(--paper);
+}
+
+.newspaper-story--wire {
+  border-left: 6px solid var(--accent-dark);
+}
+
+.newspaper-story--gossip {
+  border-left: 6px dashed #8a6a9a;
+}
+
+.newspaper-story--resolution {
+  border-left: 6px solid var(--good);
+  background: var(--paper-dark);
+}
+
+.newspaper-story-source {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.newspaper-story-headline {
+  font-family: var(--font-display);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.newspaper-story-body {
+  margin: 0;
+  font-size: 15px;
+}
+
+.informant-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.informant-tip-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--paper-dark);
+  border: 3px solid var(--ink);
+  padding: 12px;
+}
+
+/* ---------------------------------------------------------------------
+   Bank screen + default-resolution prompt (T040)
+   --------------------------------------------------------------------- */
+
+.bank-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bank-amount-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.bank-amount-row .trade-qty-input {
+  width: 100%;
+}
+
+.bank-amount-row-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.bank-amount-row-buttons button {
+  flex: 1;
+}
+
+.travel-expand-btn {
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.travel-price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0;
+  padding: 8px;
+  background: var(--paper-dark);
+  border: 2px solid var(--wood-dark);
+}
+
+.default-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------------------------------------------------------------------
+   Year-end + Game over screens (T042/T043)
+   --------------------------------------------------------------------- */
+
+.year-end-screen,
+.game-over-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-over-chart-placeholder {
+  border: 2px dashed var(--wood);
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------------
    Day/travel transition overlay (App.tsx + DayTransition.tsx) — marks the
    moment a day passes or a journey completes, instead of a silent HUD
    number tick. Duration MUST match App.tsx's TRANSITION_DURATION_MS (1100ms).

@@ -2,19 +2,18 @@
  * Zustand game store (T034) — thin adapter wiring UI actions into
  * /src/engine. No game logic lives here: every action just calls an engine
  * function and writes back whatever GameState it returns, funneled through
- * `persist`/`refreshUnlocks` first (see those functions' own doc comments).
- * Covers trade, travel, stay, deposit/withdraw, loan take/repay, default
- * resolution, CA hiring, and save/load — the full T034 action surface.
+ * `commit()` first (see its own doc comment). Covers trade, travel, stay,
+ * deposit/withdraw, loan take/repay, default resolution, CA hiring, and
+ * save/load — the full T034 action surface.
  *
  * Save/load (fast-tracked ahead of the full T032 persistence task before
  * T032 itself was built — both are done now): every mutating action runs
- * its result through `persist()` before `set()`, so the current run
- * auto-saves to localStorage after every action — reloading the page never
- * loses more than the single in-flight action. `save()` is an ADDITIONAL
- * manual trigger purely for player-visible reassurance (flips `justSaved`
- * for 2s so the HUD can show a brief confirmation); it doesn't do anything
- * auto-save hasn't already done. `continueGame()` is what the Title screen's
- * "Continue" button calls.
+ * its result through `commit()` before `set()`, which auto-saves to
+ * localStorage — reloading the page never loses more than the single
+ * in-flight action. `save()` is an ADDITIONAL manual trigger purely for
+ * player-visible reassurance (flips `justSaved` for 2s so the HUD can show
+ * a brief confirmation); it doesn't do anything auto-save hasn't already
+ * done. `continueGame()` is what the Title screen's "Continue" button calls.
  */
 
 import { create } from 'zustand'
@@ -24,10 +23,14 @@ import { travel as engineTravel, advanceTravelDay } from '../../engine/actions/t
 import { stay as engineStay } from '../../engine/actions/stay'
 import { checkCityUnlocks, checkGoodUnlocks } from '../../engine/unlocks'
 import { hasSavedGame, loadGame, saveGame } from '../../engine/persistence/saveLoad'
+import { recordScore } from '../../engine/persistence/highScore'
 import { deposit as engineDeposit, withdraw as engineWithdraw } from '../../engine/bank/deposits'
 import { takeLoan as engineTakeLoan, repayLoan as engineRepayLoan } from '../../engine/bank/loans'
 import { resolveDefault as engineResolveDefault } from '../../engine/bank/default'
 import { hireCA as engineHireCA } from '../../engine/ca'
+import { generateDailyPaper } from '../../engine/newspaper'
+import { buyInformantTip as engineBuyInformantTip, type InformantTip } from '../../engine/informant'
+import { createRng } from '../../engine/rng'
 import type { CATier, CityId, Difficulty, GameState, GoodId } from '../../engine/types'
 
 interface GameStoreState {
@@ -47,8 +50,22 @@ interface GameStoreState {
   repayLoan: (cityId: CityId, amount: number) => void
   resolveDefault: (choice: 'surrender' | 'restructure' | 'bankruptcy') => void
   hireCA: (tier: Exclude<CATier, 'none'>) => void
+  /** Generates today's newspaper if it hasn't been generated yet (§7's
+   * pipeline is "screen-driven" per newsBot.ts's own doc comment — nothing
+   * in the engine's daily tick calls `generateDailyPaper` automatically).
+   * Safe to call every time the Newspaper popup opens: a no-op once
+   * `game.currentNewspaper` already has today's stories, so re-opening the
+   * same day's paper never re-rolls it or double-marks events as announced. */
+  refreshNewspaper: () => void
+  /** Purchases one Informant tip (§7 Insider information) and returns the
+   * tip result directly (not just via `game`) so the caller can show it
+   * once, immediately — the hint itself isn't persisted anywhere in
+   * `GameState` (only the underlying scheduled Event is), so this is the
+   * only moment it's ever available. `null` if the purchase was rejected
+   * (wrong bank tier, insufficient cash) or there's no game in progress. */
+  buyInformantTip: () => InformantTip | null
   /** Explicit manual save, for the HUD's Save button. Auto-save (see
-   * `persist` below) already covers every mutating action, so this exists
+   * `commit` below) already covers every mutating action, so this exists
    * purely to give the player an on-demand confirmation that their progress
    * is safe — matches "Save" per §1/§17. */
   save: () => void
@@ -57,16 +74,13 @@ interface GameStoreState {
    * action uses this to know whether to fall through to a fresh game. */
   continueGame: () => boolean
   hasSave: () => boolean
-}
-
-/** Auto-save hook: every mutating store action funnels its resulting state
- * through this before `set()`, so a save is never more than one action
- * stale — reloading the page (or a crash) loses at most the current
- * in-progress action, not the whole run. Manual `save()` (below) is
- * additive on top of this, purely for player-visible reassurance. */
-function persist(state: GameState): GameState {
-  saveGame(state)
-  return state
+  /** Returns to the Title screen without touching the saved run (the
+   * finished/abandoned game stays on disk — starting a New Game from the
+   * Title screen simply overwrites it on its first action, matching this
+   * project's single-save-slot design, §13 "multiple save slots" is
+   * explicitly out of v1 scope). Used by the Game Over screen's "Back to
+   * Title" button. */
+  returnToTitle: () => void
 }
 
 /** Runs the two unlock-check functions (T010) — safe/cheap no-ops when
@@ -76,12 +90,41 @@ function refreshUnlocks(state: GameState): GameState {
   return checkGoodUnlocks(checkCityUnlocks(state))
 }
 
+/**
+ * The single funnel EVERY mutating action's resulting state passes through
+ * before `set()`. Two responsibilities:
+ *   1. Auto-save (`saveGame`) — every action is durable to localStorage
+ *      immediately, not just on an explicit `save()` call.
+ *   2. Exactly-once score recording (T043 prep) — the moment `gameOver`
+ *      is true and this run hasn't recorded its score yet
+ *      (`!state.scoreRecorded`), calls `recordScore` (T033) and stamps
+ *      `scoreRecorded: true` onto the state BEFORE it's saved. Guarding on
+ *      a field persisted IN `GameState` itself (rather than component/ref
+ *      state) means this stays exactly-once even across a page reload —
+ *      a finished run auto-saves like any other, so re-loading it via
+ *      "Continue" must not re-record (and duplicate) its high-score entry.
+ *      Centralized here (not in a React effect) so it's a synchronous,
+ *      unmissable part of whichever action actually flips `gameOver`,
+ *      regardless of render timing.
+ */
+function commit(set: (partial: Partial<GameStoreState>) => void, state: GameState): void {
+  let next = state
+
+  if (next.gameOver && !next.scoreRecorded) {
+    recordScore({ peakNetWorth: next.peakNetWorth, daysSurvived: next.day, difficulty: next.difficulty })
+    next = { ...next, scoreRecorded: true }
+  }
+
+  saveGame(next)
+  set({ game: next })
+}
+
 export const useGameStore = create<GameStoreState>((set, get) => ({
   game: null,
   justSaved: false,
 
   newGame: (difficulty) => {
-    set({ game: persist(createNewGame(difficulty, Date.now())) })
+    commit(set, createNewGame(difficulty, Date.now()))
   },
 
   buy: (goodId, qty) => {
@@ -89,7 +132,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     if (!game) return
     const price = game.priceStates[game.currentCity]?.[goodId]?.currentPrice
     if (price === undefined) return
-    set({ game: persist(refreshUnlocks(engineBuy(game, goodId, qty, price))) })
+    commit(set, refreshUnlocks(engineBuy(game, goodId, qty, price)))
   },
 
   sell: (goodId, qty) => {
@@ -97,7 +140,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     if (!game) return
     const price = game.priceStates[game.currentCity]?.[goodId]?.currentPrice
     if (price === undefined) return
-    set({ game: persist(refreshUnlocks(engineSell(game, goodId, qty, price))) })
+    commit(set, refreshUnlocks(engineSell(game, goodId, qty, price)))
   },
 
   travelTo: (cityId) => {
@@ -113,49 +156,68 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       next = advanceTravelDay(next)
       guard++
     }
-    set({ game: persist(refreshUnlocks(next)) })
+    commit(set, refreshUnlocks(next))
   },
 
   stay: () => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineStay(game))) })
+    commit(set, refreshUnlocks(engineStay(game)))
   },
 
   deposit: (cityId, amount) => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineDeposit(game, cityId, amount))) })
+    commit(set, refreshUnlocks(engineDeposit(game, cityId, amount)))
   },
 
   withdraw: (cityId, amount) => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineWithdraw(game, cityId, amount))) })
+    commit(set, refreshUnlocks(engineWithdraw(game, cityId, amount)))
   },
 
   takeLoan: (cityId, amount) => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineTakeLoan(game, cityId, amount))) })
+    commit(set, refreshUnlocks(engineTakeLoan(game, cityId, amount)))
   },
 
   repayLoan: (cityId, amount) => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineRepayLoan(game, cityId, amount))) })
+    commit(set, refreshUnlocks(engineRepayLoan(game, cityId, amount)))
   },
 
   resolveDefault: (choice) => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineResolveDefault(game, choice))) })
+    commit(set, refreshUnlocks(engineResolveDefault(game, choice)))
   },
 
   hireCA: (tier) => {
     const { game } = get()
     if (!game) return
-    set({ game: persist(refreshUnlocks(engineHireCA(game, tier))) })
+    commit(set, refreshUnlocks(engineHireCA(game, tier)))
+  },
+
+  refreshNewspaper: () => {
+    const { game } = get()
+    if (!game) return
+    if (game.currentNewspaper.length > 0 && game.currentNewspaper[0]?.day === game.day) return
+    const rng = createRng(Date.now())
+    const { state: next } = generateDailyPaper(game, rng)
+    commit(set, next)
+  },
+
+  buyInformantTip: () => {
+    const { game } = get()
+    if (!game) return null
+    const rng = createRng(Date.now())
+    const result = engineBuyInformantTip(game, rng)
+    if (!result) return null
+    commit(set, result.state)
+    return result.tip
   },
 
   save: () => {
@@ -174,4 +236,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   hasSave: () => hasSavedGame(),
+
+  returnToTitle: () => {
+    set({ game: null })
+  },
 }))

@@ -310,15 +310,16 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: A reusable scene component mounts a PixiJS `Application` into a container `<canvas>` sized to the 360×740 (scaled) frame, cleans up on unmount (no leaked WebGL context on screen/route changes), and exposes a way to place/animate sprites on it. The character sprite uses the CraftPix "Free City Trader Character" pack (§12 has the download link and confirmed license — free commercial use, no attribution required, don't redistribute the raw files) with at least an idle animation working end-to-end (walk-cycle wiring can follow later once movement is designed). React (HUD, popups) continues to render in the DOM above/around this canvas — this task does not move any UI logic into PixiJS.
   - Mobile/desktop note: Verify canvas scaling holds at 360×740 and on a larger desktop fallback viewport; canvas must not overflow or blur at either size.
 
-- [ ] **T038 — Screen 3: Market**
+- [x] **T038 — Screen 3: Market**
   - Doc references: §12 (screen 3)
   - Dependencies: T035, T012, T008, T011
   - File path hints: `/src/ui/screens/MarketScreen.tsx`, `/src/ui/components/CapacityBar.tsx`
   - Acceptance criteria: Lists unlocked commodities with live price (current city only), owned qty, avg buy cost, and +1/+10/+max buy/sell steppers wired to the store's trade action. A reusable `CapacityBar` component is created here (used for cargo fill) and explicitly designed for reuse by the Warehouse screen later (T052) for its "same bar-fill visual language" requirement per §14.
   - Mobile/desktop note: Primary target mobile-portrait 360×740; steppers must be large-tap-friendly; desktop secondary fallback only.
   - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
+  - Note (user-directed redesign): the +1/+10/+max always-visible steppers were replaced, at the user's explicit request, with a simple list (name, colored Buy/Sell price) that drills into a tap-to-trade panel (`TradePanel.tsx`) offering Buy/Sell tabs, a numeric input, -/+ buttons, a slider, and Max — a superset of the stepper functionality, chosen for lower friction. `CapacityBar` is built and wired in as specified (Market's cargo fill), reusable as-is by T052.
 
-- [ ] **T039 — Screen 4: Newspaper (+ Informant)**
+- [x] **T039 — Screen 4: Newspaper (+ Informant)**
   - Doc references: §12 (screen 4), §7 (resolution stories, source styling), §7 (Insider information)
   - Dependencies: T035, T018, T019, T020, T037
   - File path hints: `/src/ui/screens/NewspaperScreen.tsx`, `/src/ui/screens/InformantModal.tsx`
@@ -326,7 +327,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Mobile/desktop note: Primary target mobile-portrait 360×740, full-screen scrollable paper layout; desktop secondary fallback only.
   - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
-- [ ] **T040 — Screen 5: Bank**
+- [x] **T040 — Screen 5: Bank**
   - Doc references: §12 (screen 5), §9, §10 (CA hiring "in season")
   - Dependencies: T035, T022, T023, T024, T031
   - File path hints: `/src/ui/screens/BankScreen.tsx`
@@ -334,7 +335,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Mobile/desktop note: Primary target mobile-portrait 360×740; desktop secondary fallback only.
   - Note (2026-07-26, §12 rewrite): opened via the HUD's bank icon (bottom-left, T037), renders inside T035's popup layer over the persistent hub scene — not as a full-page screen swap.
 
-- [ ] **T041 — Screen 6: Travel map**
+- [x] **T041 — Screen 6: Travel map**
   - Doc references: §12 (screen 6), §4
   - Dependencies: T035, T013, T007
   - File path hints: `/src/ui/screens/TravelScreen.tsx`
@@ -342,7 +343,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Mobile/desktop note: Primary target mobile-portrait 360×740, scrollable city list; desktop secondary fallback only.
   - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
-- [ ] **T042 — Screen 7: Year-end tax statement**
+- [x] **T042 — Screen 7: Year-end tax statement**
   - Doc references: §12 (screen 7), §10
   - Dependencies: T035, T030, T031
   - File path hints: `/src/ui/screens/YearEndScreen.tsx`
@@ -350,7 +351,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Mobile/desktop note: Primary target mobile-portrait 360×740; desktop secondary fallback only.
   - Note (2026-07-26, §12 rewrite): renders inside T035's popup layer, over the persistent hub scene — not as a full-page screen swap.
 
-- [ ] **T043 — Screen 8: Game over / score screen**
+- [x] **T043 — Screen 8: Game over / score screen**
   - Doc references: §12 (screen 8), §1, §9 (bankruptcy declare option)
   - Dependencies: T035, T033, T024, T009
   - File path hints: `/src/ui/screens/GameOverScreen.tsx`
@@ -362,7 +363,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 9 — Deploy Checkpoint (v1 Core Loop Ships)
 
-- [ ] **T044 — Playtest build polish & deploy configuration**
+- [x] **T044 — Playtest build polish & deploy configuration**
   - Doc references: §17 (build step 9)
   - Dependencies: T036, T037, T038, T039, T040, T041, T042, T043
   - File path hints: repo root (`vercel.json` or Netlify config, `package.json` build scripts)

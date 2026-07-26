@@ -494,6 +494,20 @@ export interface GameState {
    */
   gameOver?: boolean
 
+  /**
+   * T043 (UI) addition — true once this run's final score has been recorded
+   * to the local high-score table (`recordScore`,
+   * /src/engine/persistence/highScore.ts) after `gameOver` became true. This
+   * lives on `GameState` itself (persisted via `saveGame`/`loadGame`, T032)
+   * rather than as transient UI/component state so the "record exactly
+   * once" guarantee survives a page reload: a finished (`gameOver: true`)
+   * run is auto-saved same as any other, so if the player reloads and hits
+   * "Continue" on a finished run, the store must be able to tell it already
+   * recorded this run's score and not double-count it. `undefined`/`false`
+   * = not yet recorded (only ever meaningful once `gameOver` is `true`).
+   */
+  scoreRecorded?: boolean
+
   // ---------------------------------------------------------------------
   // T030 additions (§10 Tax & CA System) — all optional, backward
   // compatible with every earlier task's `GameState` fixtures (none of

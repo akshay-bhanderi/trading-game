@@ -58,6 +58,7 @@ export function createNewGame(difficulty: Difficulty, seed: number): GameState {
     awaitingDefaultDecision: null,
     restructureRecheckDay: null,
     gameOver: false,
+    scoreRecorded: false,
   }
 
   return advanceDay(rawState)
