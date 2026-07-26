@@ -18,7 +18,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `npm run dev` and `npm run build` succeed on a blank scaffold; `/src/engine` and `/src/ui` directories exist with a README or comment stating the "no React imports in engine" rule; a lint rule or CI check (e.g. ESLint `no-restricted-imports`) blocks `react` imports inside `/src/engine`; a test runner (Vitest recommended, since it runs headless in Node matching the §17 bot-harness requirement) is configured and a trivial passing test exists.
   - Mobile/desktop note: N/A — tooling/scaffold only, no rendered UI yet.
 
-- [ ] **T002 — Core TypeScript types (City, Good, Event, GameState, etc.)**
+- [x] **T002 — Core TypeScript types (City, Good, Event, GameState, etc.)**
   - Doc references: §4, §5, §6, §7, §9, §10, §17
   - Dependencies: T001
   - File path hints: `/src/engine/types.ts`
