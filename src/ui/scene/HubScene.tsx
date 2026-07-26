@@ -71,9 +71,14 @@ export default function HubScene({ cityId }: HubSceneProps) {
         floorRef.current = floor
 
         // Room 1 brand signage (§12: "Room 1 displays the game's own
-        // business name as in-scene signage/decor").
+        // business name as in-scene signage/decor"). Sits BELOW the HUD's
+        // top-left/top-right chips (city/day, cash/cargo — Hud.tsx, absolute
+        // positioned in front of this canvas) so it never overlaps them; the
+        // chips run roughly 12-54px from the top, so the sign starts at 96px
+        // for a comfortable margin.
+        const SIGN_TOP = 96
         const signBoard = new Graphics()
-        signBoard.roundRect(60, 60, 240, 44, 4).fill(0x2b1c10).stroke({ width: 3, color: 0x1a0f08 })
+        signBoard.roundRect(60, SIGN_TOP, 240, 44, 4).fill(0x2b1c10).stroke({ width: 3, color: 0x1a0f08 })
         root.addChild(signBoard)
 
         const signText = new Text({
@@ -88,7 +93,7 @@ export default function HubScene({ cityId }: HubSceneProps) {
           },
         })
         signText.anchor.set(0.5)
-        signText.position.set(60 + 120, 60 + 22)
+        signText.position.set(60 + 120, SIGN_TOP + 22)
         root.addChild(signText)
 
         let sprite: AnimatedSprite | null = null
