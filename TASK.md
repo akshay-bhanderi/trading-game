@@ -35,9 +35,9 @@ The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-p
 | 7 | App Shell & State Wiring | [tasks/phase-07-app-shell-state-wiring.md](tasks/phase-07-app-shell-state-wiring.md) | ✅ Complete (T034–T035) |
 | 8 | UI Screens (1–8) | [tasks/phase-08-ui-screens.md](tasks/phase-08-ui-screens.md) | ✅ Complete (T036–T043, T069) |
 | 9 | Deploy Checkpoint (v1 Core Loop Ships) | [tasks/phase-09-deploy-checkpoint.md](tasks/phase-09-deploy-checkpoint.md) | 🟡 1 of 2 (T044 done, **T045 gate pending**) |
-| 10 | Phase 2: Warehouse Storage | [tasks/phase-10-warehouse-storage.md](tasks/phase-10-warehouse-storage.md) | ⛔ Not started (blocked on T045) |
-| 11 | Phase 2: Hotel Ownership | [tasks/phase-11-hotel-ownership.md](tasks/phase-11-hotel-ownership.md) | ⛔ Not started (blocked on T045) |
-| 12 | Phase 2: Aviation Leasing | [tasks/phase-12-aviation-leasing.md](tasks/phase-12-aviation-leasing.md) | ⛔ Not started (blocked on T045) |
+| 10 | Phase 2: Warehouse Storage | [tasks/phase-10-warehouse-storage.md](tasks/phase-10-warehouse-storage.md) | ✅ Complete (T046–T052) |
+| 11 | Phase 2: Hotel Ownership | [tasks/phase-11-hotel-ownership.md](tasks/phase-11-hotel-ownership.md) | ✅ Complete (T053–T058) |
+| 12 | Phase 2: Aviation Leasing | [tasks/phase-12-aviation-leasing.md](tasks/phase-12-aviation-leasing.md) | ✅ Complete (T059–T066) |
 | 13 | Final Balance Pass (Phase 2 Included) | [tasks/phase-13-final-balance-pass.md](tasks/phase-13-final-balance-pass.md) | ⛔ Not started — contains the deferred full test pass (T068) |
 
-**Next eligible task: T045** in [Phase 9](tasks/phase-09-deploy-checkpoint.md) — everything in Phases 10–13 is blocked behind it.
+**Next eligible task: T068** in [Phase 13](tasks/phase-13-final-balance-pass.md). Phases 10–12 were built ahead of the T045 gate per explicit user direction (see the Testing policy section above) — T045 itself remains unchecked in [Phase 9](tasks/phase-09-deploy-checkpoint.md) and, along with the full deferred test suite, must be reconciled as part of T068's final pass.
