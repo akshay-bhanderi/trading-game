@@ -28,6 +28,7 @@ import { deposit as engineDeposit, withdraw as engineWithdraw } from '../../engi
 import { takeLoan as engineTakeLoan, repayLoan as engineRepayLoan } from '../../engine/bank/loans'
 import { resolveDefault as engineResolveDefault } from '../../engine/bank/default'
 import { hireCA as engineHireCA } from '../../engine/ca'
+import { buildOrUpgradeHotel as engineBuildOrUpgradeHotel, sellHotel as engineSellHotel } from '../../engine/hotel'
 import { generateDailyPaper } from '../../engine/newspaper'
 import { buyInformantTip as engineBuyInformantTip, type InformantTip } from '../../engine/informant'
 import { createRng } from '../../engine/rng'
@@ -50,6 +51,15 @@ interface GameStoreState {
   repayLoan: (cityId: CityId, amount: number) => void
   resolveDefault: (choice: 'surrender' | 'restructure' | 'bankruptcy') => void
   hireCA: (tier: Exclude<CATier, 'none'>) => void
+  /** Builds (unowned) or upgrades (owned, not yet top tier) `cityId`'s
+   * hotel to the next tier (§15, T054) — a no-op (rejected by the engine)
+   * unless `cityId === game.currentCity` and the marginal cost is
+   * affordable. See /src/engine/hotel.ts's `buildOrUpgradeHotel`. */
+  buildOrUpgradeHotel: (cityId: CityId) => void
+  /** Sells `cityId`'s owned hotel back for 50% of total invested (§15,
+   * T057) — a no-op unless `cityId === game.currentCity` and it's actually
+   * owned. See /src/engine/hotel.ts's `sellHotel`. */
+  sellHotel: (cityId: CityId) => void
   /** Generates today's newspaper if it hasn't been generated yet (§7's
    * pipeline is "screen-driven" per newsBot.ts's own doc comment — nothing
    * in the engine's daily tick calls `generateDailyPaper` automatically).
@@ -199,6 +209,18 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const { game } = get()
     if (!game) return
     commit(set, refreshUnlocks(engineHireCA(game, tier)))
+  },
+
+  buildOrUpgradeHotel: (cityId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineBuildOrUpgradeHotel(game, cityId)))
+  },
+
+  sellHotel: (cityId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineSellHotel(game, cityId)))
   },
 
   refreshNewspaper: () => {

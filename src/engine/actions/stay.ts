@@ -27,9 +27,22 @@
  * the player chooses to Stay (see turnLoop.ts's file header for the full
  * rationale — this is option (a) from T015's brief: funnel through
  * `advanceDay` rather than build a parallel orchestration layer).
+ *
+ * ---------------------------------------------------------------------------
+ * UPDATED BY T055 (§15 Hotel Ownership): free stays for the hotel's owner
+ * ---------------------------------------------------------------------------
+ * §15: "while you own a city's hotel, the Stay action there costs you $0."
+ * `stay()` now checks `isHotelOwnedByPlayer` (/src/engine/hotel.ts) against
+ * `state.currentCity` BEFORE charging anything — owning the current city's
+ * hotel makes the nightly charge exactly `0` instead of `city.hotelPerNight`,
+ * with everything else (day-advance, price recompute, net worth) unchanged.
+ * This deliberately does NOT change the function's rejection shape: it still
+ * only rejects for an unknown city or insufficient cash for whatever the
+ * ACTUAL charge is (which is trivially satisfied once that charge is `0`).
  */
 
 import { CITIES } from '../data/cities'
+import { isHotelOwnedByPlayer } from '../hotel'
 import { advanceDay } from '../turnLoop'
 import type { GameState } from '../types'
 
@@ -37,19 +50,22 @@ import type { GameState } from '../types'
  * Stays the night in the player's current city (`state.currentCity`).
  *
  * Looks up the current city's nightly rate (`City.hotelPerNight` from
- * `CITIES`, §4), deducts it from `state.cash`, then delegates the day-advance
- * itself to `advanceDay` (T015) — which increments `state.day`, recomputes
- * all city+good prices for the new day, and updates net worth/peak net
- * worth.
+ * `CITIES`, §4) — or `$0` if the player owns that city's hotel (§15, T055's
+ * free-stays rule) — deducts it from `state.cash`, then delegates the
+ * day-advance itself to `advanceDay` (T015) — which increments `state.day`,
+ * recomputes all city+good prices for the new day, and updates net worth/
+ * peak net worth.
  *
  * On success: returns a NEW `GameState` with `cash` reduced by exactly the
- * current city's `hotelPerNight`, `day` incremented by 1, prices recomputed
- * for the new day, and net worth/peak net worth refreshed.
+ * current city's `hotelPerNight` (or `0` for the hotel's owner), `day`
+ * incremented by 1, prices recomputed for the new day, and net worth/peak
+ * net worth refreshed.
  *
  * Rejected (returns the identical `state` reference, unchanged) when:
  *   - the current city cannot be found in `CITIES` (defensive — should not
  *     happen in a well-formed game state), or
- *   - `state.cash` is less than the current city's `hotelPerNight`.
+ *   - `state.cash` is less than the actual nightly charge (never triggers
+ *     for the hotel's owner, since their charge is always `$0`).
  */
 export function stay(state: GameState): GameState {
   const city = CITIES.find((c) => c.id === state.currentCity)
@@ -59,14 +75,16 @@ export function stay(state: GameState): GameState {
     return state
   }
 
-  if (state.cash < city.hotelPerNight) {
+  const nightlyCharge = isHotelOwnedByPlayer(state, city.id) ? 0 : city.hotelPerNight
+
+  if (state.cash < nightlyCharge) {
     // Insufficient cash — reject with no mutation.
     return state
   }
 
   const afterPayment: GameState = {
     ...state,
-    cash: state.cash - city.hotelPerNight,
+    cash: state.cash - nightlyCharge,
   }
 
   return advanceDay(afterPayment)

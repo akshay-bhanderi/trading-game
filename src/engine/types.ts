@@ -312,8 +312,28 @@ export interface TaxRecord {
   taxPaid: number
   caTierActive: CATier
   /** True if the tax bill exceeded cash+deposits and was covered by a
-   * forced Huge-bank-rate loan (§10). */
+   * forced Huge-bank-rate loan (§10). T053 widens this to ALSO cover a
+   * hotel-license-fee shortfall (see `hotelLicenseFeesPaid` below and
+   * tax.ts's `runYearEnd` for the full rationale) — `true` if EITHER the
+   * tax bill or the hotel license fee bill (or both) needed the forced
+   * loan. */
   forcedLoanTriggered: boolean
+
+  /**
+   * T053 addition (§15 Hotel Ownership) — total hotel annual license fees
+   * actually PAID this year-end (i.e. after any shortfall that rolled into
+   * `taxDebt` is subtracted out), summed across every city in
+   * `GameState.hotels`. `0` when the player owns no hotels. Deliberately a
+   * SEPARATE field from `taxPaid` (rather than folding hotel fees into that
+   * number) even though both amounts are deducted through the same cash ->
+   * deposits -> forced-loan cascade in `runYearEnd` — keeping them apart
+   * lets the Year-End statement (T042/YearEndScreen) show the trading tax
+   * and the hotel-portfolio license bill as two distinct, honestly-labeled
+   * line items rather than one opaque combined number. Optional (not every
+   * pre-T053 `TaxRecord` in an existing save file will have it) — treated
+   * as `0`/not-applicable wherever read.
+   */
+  hotelLicenseFeesPaid?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -584,4 +604,32 @@ export interface GameState {
    * year yet).
    */
   hiredCATierThisFiscalYear?: CATier
+
+  // ---------------------------------------------------------------------
+  // T053 additions (§15 Hotel Ownership) — optional, backward compatible
+  // with every earlier task's `GameState` fixtures (none of which set this;
+  // treated as "owns no hotels anywhere" wherever read via `?? {}`). See
+  // /src/engine/hotel.ts's file header for the full build/upgrade/revenue/
+  // sell-back rationale.
+  // ---------------------------------------------------------------------
+
+  /**
+   * One hotel holding per owned city, keyed by city id — absence of a key
+   * means "does not own that city's hotel" (never an explicit `tier: -1` or
+   * similar sentinel). `tier` is a 0-based index into `CONFIG.hotel.tiers`
+   * (0 = Inn, 1 = Lodge, 2 = Grand Hotel, 3 = Resort) — the SAME array this
+   * whole system prices every cost/revenue/license figure from, so a tier
+   * index alone (plus the owning city's static `City.hotelPerNight`, §4)
+   * is sufficient to derive EVERY dollar figure the hotel system needs
+   * (build cost so far, current daily revenue, current annual license fee)
+   * with no redundant stored totals to keep in sync. `hotel.ts` is the sole
+   * writer (`buildOrUpgradeHotel` sets/advances a city's entry;
+   * `sellHotel` removes it entirely rather than ever setting a "tier 0
+   * but not owned" state). `undefined`/missing city key is equivalent to
+   * "never owned" — deliberately NOT a `Record<CityId, HotelHolding> = {}`
+   * default on every fresh game (see newGame.ts, which — like `taxDebt`/
+   * `hiredCATierThisFiscalYear` before it — simply omits this field
+   * entirely for a brand-new run rather than seeding an empty object).
+   */
+  hotels?: Record<CityId, { tier: number }>
 }

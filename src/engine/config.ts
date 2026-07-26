@@ -497,11 +497,100 @@ export const WAREHOUSE = {
 // ---------------------------------------------------------------------------
 // §15 — Hotel Ownership (Phase 2 / Phase 11, T053)
 // ---------------------------------------------------------------------------
-// Placeholder only — do NOT fill in yet. T053 will populate the 4 tiers'
-// build/upgrade, passive-revenue, and annual-license multipliers here (all
-// expressed × each city's nightly rate, per §15).
+
+export interface HotelTierConfig {
+  /** §15 table's "Name" column — surfaced directly in the Real Estate UI
+   * (T058), not used for any engine logic (tier IDENTITY is the array
+   * INDEX into `HOTEL.tiers`, not this string). */
+  name: string
+  /**
+   * §15: "Build/upgrade cost (× city nightly rate)". Crucially this is the
+   * MARGINAL cost to reach THIS tier from the previous one, exactly as the
+   * doc table phrases it ("Lodge's '+1,200x' is paid on top of what Inn
+   * already cost") — NOT a cumulative/total cost. Tier 0 (Inn)'s value is
+   * also, trivially, its own marginal cost since there is no tier below it
+   * (building from scratch). `hotel.ts`'s `buildOrUpgradeHotel` sums
+   * `tiers[0..N].buildOrUpgradeCostMultiplier` whenever it needs a
+   * CUMULATIVE total-invested figure (sell-back, T057) — this field itself
+   * is always just the one marginal step.
+   */
+  buildOrUpgradeCostMultiplier: number
+  /**
+   * §15: "Passive revenue (× nightly rate /day)". This is tier's OWN flat
+   * daily rate, NOT additive/marginal like the cost column above —
+   * upgrading from Inn to Lodge means the hotel now earns at LODGE's
+   * 1.8x rate, replacing (not adding to) Inn's 0.8x. Mirrors how a real
+   * upgraded building earns at its new capacity, not the sum of every
+   * capacity it ever had.
+   */
+  passiveRevenueMultiplier: number
+  /** §15: "Annual license fee (× nightly rate /yr)" — same non-cumulative,
+   * current-tier-only semantics as `passiveRevenueMultiplier` above. */
+  annualLicenseFeeMultiplier: number
+}
+
 export const HOTEL = {
-  // Filled in by T053
+  /**
+   * §15's 4-tier table, in strict Inn -> Lodge -> Grand Hotel -> Resort
+   * order. Tier IDENTITY throughout the hotel system (`GameState.hotels`,
+   * T053) is this array's INDEX (0 = Inn ... 3 = Resort), never a string
+   * name — `hotel.ts`'s `buildOrUpgradeHotel` always purchases
+   * `tiers[currentIndex + 1]` (or `tiers[0]` for a fresh build), so the
+   * array's declaration order IS the upgrade order; reordering this array
+   * would silently change game logic, not just cosmetics.
+   *
+   * All 3 multiplier columns apply × the OWNING CITY's existing
+   * `City.hotelPerNight` (§4) rather than a new hardcoded per-city table —
+   * see this section's own header comment and hotel.ts's file header for
+   * the full "config-driven, not hardcoded" rationale. Verified against
+   * §15's own worked example: Silkden's nightly rate is $60
+   * (`CITIES.find(c => c.id === 'silkden').hotelPerNight`), so tier 0 (Inn)
+   * costs `500 * 60 = $30,000`, earns `0.8 * 60 = $48`/day, and carries a
+   * `20 * 60 = $1,200`/yr license fee — exactly the doc's example numbers.
+   */
+  tiers: [
+    {
+      name: 'Inn',
+      buildOrUpgradeCostMultiplier: 500,
+      passiveRevenueMultiplier: 0.8,
+      annualLicenseFeeMultiplier: 20,
+    },
+    {
+      name: 'Lodge',
+      buildOrUpgradeCostMultiplier: 1200,
+      passiveRevenueMultiplier: 1.8,
+      annualLicenseFeeMultiplier: 45,
+    },
+    {
+      name: 'Grand Hotel',
+      buildOrUpgradeCostMultiplier: 3000,
+      passiveRevenueMultiplier: 3.6,
+      annualLicenseFeeMultiplier: 100,
+    },
+    {
+      name: 'Resort',
+      buildOrUpgradeCostMultiplier: 7500,
+      passiveRevenueMultiplier: 7.0,
+      annualLicenseFeeMultiplier: 220,
+    },
+  ] satisfies HotelTierConfig[],
+
+  /**
+   * §15: "Sell-back: 50% of total invested (build + all upgrades), matching
+   * the Warehouse salvage rate (§14)." Defined as hotel's OWN standalone
+   * constant — set to the same numeric value (0.5) the Warehouse system
+   * (§14, Phase 10, built concurrently in a separate worktree) uses for its
+   * own salvage rate — rather than importing/reading `CONFIG.warehouse`'s
+   * equivalent constant. Two independent, concurrently-developed phases
+   * (Warehouse/Phase 10 and Hotel/Phase 11) each landing in their own
+   * worktree means there is no guarantee Warehouse's config key name/shape
+   * is finalized or even present yet when this file is written — a
+   * cross-phase import here would be a fragile merge-time landmine. Both
+   * values being independently set to 0.5 is a deliberate, documented
+   * duplication (matching the doc's own explicit "matching the Warehouse
+   * salvage rate" parity note), not an oversight.
+   */
+  sellBackFraction: 0.5,
 }
 
 // ---------------------------------------------------------------------------
