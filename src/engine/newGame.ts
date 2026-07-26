@@ -59,6 +59,15 @@ export function createNewGame(difficulty: Difficulty, seed: number): GameState {
     restructureRecheckDay: null,
     gameOver: false,
     scoreRecorded: false,
+    // §16 Aviation (T060-T065) — no planes owned, no bonus armed, no
+    // maintenance accrued yet. Explicitly initialized here (rather than
+    // relying solely on the `?? []`/`?? 0`/`?? null` fallbacks every reader
+    // already uses) purely for the same "a fresh GameState has an opinion on
+    // every field" clarity this function already gives every other T02x/T03x
+    // optional addition above.
+    planes: [],
+    planeMaintenanceOwedThisFiscalYear: 0,
+    armedPersonalUsePlaneId: null,
   }
 
   return advanceDay(rawState)

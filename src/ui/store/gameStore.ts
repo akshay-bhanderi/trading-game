@@ -41,7 +41,14 @@ import { buildOrUpgradeHotel as engineBuildOrUpgradeHotel, sellHotel as engineSe
 import { generateDailyPaper } from '../../engine/newspaper'
 import { buyInformantTip as engineBuyInformantTip, type InformantTip } from '../../engine/informant'
 import { createRng } from '../../engine/rng'
-import type { CATier, CityId, Difficulty, GameState, GoodId } from '../../engine/types'
+import {
+  buyPlane as engineBuyPlane,
+  setPlaneStatus as engineSetPlaneStatus,
+  cancelMonthlyLease as engineCancelMonthlyLease,
+  terminateAnnualLease as engineTerminateAnnualLease,
+  sellPlane as engineSellPlane,
+} from '../../engine/aviation'
+import type { CATier, CityId, Difficulty, GameState, GoodId, PlaneClass, PlaneId, PlaneStatus } from '../../engine/types'
 
 interface GameStoreState {
   game: GameState | null
@@ -80,6 +87,18 @@ interface GameStoreState {
    * T057) — a no-op unless `cityId === game.currentCity` and it's actually
    * owned. See /src/engine/hotel.ts's `sellHotel`. */
   sellHotel: (cityId: CityId) => void
+  /** §16 Aviation (T060-T062) — thin adapters over aviation.ts, following the
+   * exact same "call engine fn, commit() the result" shape as every other
+   * action in this store. All five are no-ops (besides the `if (!game)
+   * return` guard) when the underlying engine call rejects — rejection is
+   * silent by this store's established convention (see `deposit`/`takeLoan`
+   * above), the UI is expected to only ever offer these actions when they're
+   * actually valid. */
+  buyPlane: (cityId: CityId, planeClass: PlaneClass) => void
+  setPlaneStatus: (planeId: PlaneId, status: PlaneStatus) => void
+  cancelMonthlyLease: (planeId: PlaneId) => void
+  terminateAnnualLease: (planeId: PlaneId) => void
+  sellPlane: (planeId: PlaneId) => void
   /** Generates today's newspaper if it hasn't been generated yet (§7's
    * pipeline is "screen-driven" per newsBot.ts's own doc comment — nothing
    * in the engine's daily tick calls `generateDailyPaper` automatically).
@@ -271,6 +290,36 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const { game } = get()
     if (!game) return
     commit(set, refreshUnlocks(engineSellHotel(game, cityId)))
+  },
+
+  buyPlane: (cityId, planeClass) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineBuyPlane(game, cityId, planeClass)))
+  },
+
+  setPlaneStatus: (planeId, status) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineSetPlaneStatus(game, planeId, status)))
+  },
+
+  cancelMonthlyLease: (planeId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineCancelMonthlyLease(game, planeId)))
+  },
+
+  terminateAnnualLease: (planeId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineTerminateAnnualLease(game, planeId)))
+  },
+
+  sellPlane: (planeId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineSellPlane(game, planeId)))
   },
 
   refreshNewspaper: () => {

@@ -676,6 +676,22 @@ button.secondary {
   gap: 10px;
 }
 
+/* ---------------------------------------------------------------------
+   Aviation (T066) — same flat "stack of .card"s shape as .bank-screen.
+   --------------------------------------------------------------------- */
+
+.aviation-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aviation-screen .card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .bank-amount-row {
   display: flex;
   flex-direction: column;

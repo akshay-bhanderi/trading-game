@@ -24,7 +24,7 @@
  *   §16 aviation (placeholder — filled in by T059)
  */
 
-import type { BankSize, CATier, Difficulty, VolatilityClass } from './types'
+import type { BankSize, CATier, Difficulty, PlaneClass, VolatilityClass } from './types'
 
 // ---------------------------------------------------------------------------
 // Cross-cutting constant reused by every yearly/annual system (§10, §14-§16)
@@ -694,12 +694,143 @@ export const HOTEL = {
 // ---------------------------------------------------------------------------
 // §16 — Aviation: Plane Ownership & Leasing (Phase 2 / Phase 12, T059)
 // ---------------------------------------------------------------------------
-// Placeholder only — do NOT fill in yet. T059 will populate the 4 plane
-// classes' purchase price / lease rates / travel bonuses here, plus
-// maintenance rate, depreciation rate/floor, and liquidation fee
-// (T059/T064).
+
+export interface PlaneClassConfig {
+  purchasePrice: number
+  /** §16 "Monthly lease rate (x price)" column — daily income is this rate
+   * times `purchasePrice`, divided by `leaseDaysPerMonth` below (§16: "revenue
+   * = price x monthly rate, credited daily (rate / 30/day)"). */
+  monthlyLeaseRatePctOfPrice: number
+  /** §16 "Annual lease rate* (x price)" column — daily income is this rate
+   * times `purchasePrice`, divided by `YEAR_LENGTH_DAYS` (§16: "credited
+   * daily (rate / 90/day) for a firm 90-day term"). The footnote's "*" is
+   * exactly the `YEAR_LENGTH_DAYS` clarification at the top of this file. */
+  annualLeaseRatePctOfPrice: number
+  /** §16 "Personal-travel benefit" column — applied once, to the player's
+   * NEXT `travel()` call, while this plane is in 'personal' status (T063,
+   * see actions/travel.ts). */
+  personalUse: {
+    /** Fare multiplier reduction, e.g. 0.20 for "Fare -20%". */
+    fareReductionPct: number
+    /** Flat reduction to travel days, floored so the trip is never less than
+     * 1 day (§16: "travel days -1 (min 1)"). 0 for classes with no day
+     * benefit (Prop Feeder, Freighter). */
+    travelDaysReduction: number
+    /** Effective cargo-capacity bonus "while flying" — e.g. 0.50 for
+     * Freighter's "+50% effective cargo capacity". Only affects the
+     * fare-doubling cargo-threshold check in `calcFare` (travel.ts) for this
+     * one trip — it does NOT permanently raise `state.cargoCapacity`. 0 for
+     * classes with no cargo benefit (Prop Feeder, Regional Jet). */
+    cargoCapacityBonusPct: number
+  }
+}
+
 export const AVIATION = {
-  // Filled in by T059
+  /** §16 class table — Prop Feeder / Regional Jet / Freighter / Widebody,
+   * exactly as specified (purchase price, monthly/annual lease rate,
+   * personal-travel bonus). */
+  classes: {
+    propFeeder: {
+      purchasePrice: 150_000,
+      monthlyLeaseRatePctOfPrice: 0.01,
+      annualLeaseRatePctOfPrice: 0.1,
+      personalUse: { fareReductionPct: 0.2, travelDaysReduction: 0, cargoCapacityBonusPct: 0 },
+    },
+    regionalJet: {
+      purchasePrice: 600_000,
+      monthlyLeaseRatePctOfPrice: 0.009,
+      annualLeaseRatePctOfPrice: 0.09,
+      personalUse: { fareReductionPct: 0.35, travelDaysReduction: 1, cargoCapacityBonusPct: 0 },
+    },
+    freighter: {
+      purchasePrice: 1_200_000,
+      monthlyLeaseRatePctOfPrice: 0.011,
+      annualLeaseRatePctOfPrice: 0.105,
+      personalUse: { fareReductionPct: 0.25, travelDaysReduction: 0, cargoCapacityBonusPct: 0.5 },
+    },
+    widebody: {
+      purchasePrice: 4_000_000,
+      monthlyLeaseRatePctOfPrice: 0.008,
+      annualLeaseRatePctOfPrice: 0.08,
+      personalUse: { fareReductionPct: 0.5, travelDaysReduction: 1, cargoCapacityBonusPct: 0.25 },
+    },
+  } satisfies Record<PlaneClass, PlaneClassConfig>,
+
+  /**
+   * §16: "revenue = price x monthly rate, credited daily (rate / 30/day)" —
+   * the divisor for Leased Monthly's daily-income formula (T061). Also
+   * reused below to express the maintenance rate's "/month" cadence in terms
+   * of `YEAR_LENGTH_DAYS` (a game "month" is a fixed 30-day unit; a game
+   * "year" is `YEAR_LENGTH_DAYS` (90) of them, i.e. exactly 3 months —
+   * neither the doc nor this file ever redefines 90 to make this work out,
+   * it's simply how the doc's own numbers already relate).
+   */
+  leaseDaysPerMonth: 30,
+
+  /**
+   * §16 "Carrying cost": "every owned plane...owes maintenance/insurance of
+   * 0.3%/month of purchase price, billed at year-end" (T064). This is a
+   * MONTHLY rate; `aviation.ts`'s daily accrual divides it by
+   * `leaseDaysPerMonth` (30) to get a per-day amount, accumulates it over the
+   * fiscal year, and `tax.ts`'s `runYearEnd` bills the accumulated total —
+   * see that file's own doc comment for why 0.3%/month compounds to 0.9% of
+   * purchase price per 90-day/3-month game year (0.3% x 3), not 0.3% flat.
+   */
+  maintenanceMonthlyRatePctOfPrice: 0.003,
+
+  /** §16 "Depreciation & resale". */
+  depreciation: {
+    /** Starting value, as a fraction of purchase price, the moment a plane
+     * is bought (day 0 owned). */
+    startingValuePct: 0.9,
+    /** Depreciation per full GAME YEAR owned (`YEAR_LENGTH_DAYS`), as a
+     * fraction of purchase price — see aviation.ts's `planeDepreciatedValue`
+     * for why this is applied continuously (prorated by fractional years
+     * owned) rather than only in a discrete step at each year-end. */
+    perGameYearDepreciationPct: 0.02,
+    /** Floor, as a fraction of purchase price — value never depreciates
+     * below this regardless of age. */
+    floorValuePct: 0.4,
+  },
+
+  /** §16: "Selling pays out current depreciated value minus a 10%
+   * liquidation fee." */
+  liquidationFeePct: 0.1,
+
+  /** §16 Leased Monthly: "Cancellable anytime with 3 days' notice, at which
+   * point income stops" (T062). */
+  monthlyLeaseCancelNoticeDays: 3,
+
+  /** §16 Leased Annual: "the lessee must pay 50% of the term's remaining
+   * revenue immediately" (T062 — see aviation.ts's file header for this
+   * codebase's interpretation of who "the lessee" is in practice, since the
+   * player is always the lessor). */
+  annualLeaseEarlyTerminationPenaltyPct: 0.5,
+
+  /** §16 "Events" table extension (T065). */
+  events: {
+    /** "Fuel price spike... also raises all plane maintenance +30% for 5-8
+     * days" — the surcharge multiplier applied to a day's maintenance
+     * accrual whenever a fired event affecting the Fuel good is currently
+     * active. See aviation.ts's file header for why this reuses the
+     * existing `warScare` event type rather than a dedicated new one (§7's
+     * base 11-event table, eventTable.ts, has no event named literally
+     * "Fuel price spike" — `warScare` is the only base event that moves
+     * Fuel's price at all, and its 5-8 day duration range matches this
+     * task's own wording exactly). The check itself is written generically
+     * against "any active event affecting the fuel good", not hardcoded to
+     * `warScare`'s type id, so it stays correct if a more literal
+     * "Fuel price spike" event type is ever added later.
+     */
+    fuelSpikeMaintenanceSurchargePct: 0.3,
+    /** "Aviation safety incident" — new event type (T065): grounds one
+     * random LEASED plane for a duration drawn from this range. Reuses the
+     * generic `Event.durationDaysMin/durationDaysMax` -> `resolvedDurationDays`
+     * machinery (events/resolution.ts) rather than inventing a parallel
+     * duration concept — see aviation.ts's file header for the full design
+     * rationale on how "which plane got grounded" is represented. */
+    safetyIncidentGroundingDurationDays: { min: 5, max: 10 },
+  },
 }
 
 // ---------------------------------------------------------------------------

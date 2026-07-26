@@ -42,7 +42,7 @@ import {
   SkylineIcon,
 } from './PixelIcons'
 
-export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | 'warehouse' | 'realestate' | null
+export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | 'warehouse' | 'realestate' | 'aviation' | null
 
 interface HudProps {
   cityName: string
@@ -122,6 +122,9 @@ export default function Hud({
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('realestate')} aria-label="Real Estate">
           <span className="hud-icon-glyph">🏨</span>
+        </button>
+        <button className="hud-icon-btn" onClick={() => onOpen('aviation')} aria-label="Aviation">
+          <span className="hud-icon-glyph">✈️</span>
         </button>
         <button className="hud-icon-btn" onClick={onSave} aria-label="Save game">
           <span className="hud-icon-glyph">💾</span>

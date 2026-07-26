@@ -108,9 +108,42 @@
  * "cannot trade" while multi-day travel is in progress. That check belongs
  * to `trade.ts`/the turn loop, not to this file; it is documented here so
  * the intent is discoverable from either side.
+ *
+ * ---------------------------------------------------------------------------
+ * T063 addition (§16 Aviation — Personal-use travel bonus, single-use)
+ * ---------------------------------------------------------------------------
+ * §16: a plane in `'personal'` status "applies that plane's fare/day/cargo
+ * bonus to your next Travel action instead [of lease income]." `travel()`
+ * reads `state.armedPersonalUsePlaneId` (set by aviation.ts's
+ * `setPlaneStatus`, T063) and, if it resolves to a real plane still in
+ * `'personal'` status, applies its `CONFIG.aviation.classes[class].personalUse`
+ * bonus to THIS ONE trip:
+ *   - `travelDaysReduction` is subtracted from the base `getTravelDays`
+ *     result, floored at 1 day (§16: "travel days -1 (min 1)") — a trip can
+ *     never become instantaneous.
+ *   - `cargoCapacityBonusPct` inflates the EFFECTIVE cargo capacity used only
+ *     for `calcFare`'s cargo-doubling-threshold check (travel.ts) — e.g.
+ *     Freighter's "+50% effective cargo capacity while flying" makes the
+ *     >60%-of-capacity fare-doubling trigger less likely to fire on this
+ *     trip. It does NOT touch `state.cargoCapacity` itself (the bonus is
+ *     explicitly scoped to "while flying" this one trip, not a permanent
+ *     capacity upgrade).
+ *   - `fareReductionPct` is applied as a straight multiplier reduction to
+ *     the resulting fare, AFTER the doubling check above (so a Freighter's
+ *     cargo bonus can first avoid the doubling, and its fare-reduction bonus
+ *     then further cuts whatever fare results).
+ *
+ * Whether or not a valid bonus was actually found and applied, ANY
+ * successful (non-rejected) call to `travel()` unconditionally clears
+ * `state.armedPersonalUsePlaneId` back to `null` — see aviation.ts's file
+ * header for why the bonus is single-use-per-CALL rather than tied to the
+ * plane's status persisting as `'personal'`, and why a stale/invalid pointer
+ * (e.g. the armed plane was sold or reassigned before this trip) is a
+ * silent, harmless no-op rather than an error.
  */
 
 import { CITIES } from '../data/cities'
+import { CONFIG } from '../config'
 import type { GameState } from '../types'
 import { calcFare, getTravelDays } from '../travel'
 import { cargoUsed } from '../cargo'
@@ -122,13 +155,19 @@ import { advanceDay } from '../turnLoop'
  * Computes `days = getTravelDays(state.currentCity, destinationCityId)` and
  * `cargoUsedPct = cargoUsed(state) / state.cargoCapacity`, then
  * `fare = calcFare(days, destinationCity.tier, cargoUsedPct)` (both reused
- * from T007/T011 — not reimplemented here).
+ * from T007/T011 — not reimplemented here). T063: if an Aviation
+ * Personal-use plane is currently armed (`state.armedPersonalUsePlaneId`),
+ * that plane's class bonus adjusts `days`/`cargoUsedPct`/the final fare
+ * before any of the above — see file header's "T063 addition" section for
+ * the exact formula and ordering.
  *
  * On success: returns a NEW `GameState` with `cash` reduced by exactly
  * `fare` and `state.travelInProgress` set to
  * `{ destinationCityId, daysRemaining: days, totalDays: days }`.
  * `state.currentCity` is left untouched — arrival happens via
  * `advanceTravelDay`, once `daysRemaining` reaches 0 (see file header).
+ * `state.armedPersonalUsePlaneId` is unconditionally cleared to `null`
+ * (T063 — the bonus, if any, is single-use).
  *
  * By design, travel is allowed even if `fare` exceeds `state.cash` — cash
  * is deducted unconditionally and may go negative. This is a deliberate
@@ -151,9 +190,31 @@ export function travel(state: GameState, destinationCityId: string): GameState {
     return state
   }
 
-  const days = getTravelDays(state.currentCity, destinationCityId)
-  const cargoUsedPct = cargoUsed(state) / state.cargoCapacity
-  const fare = calcFare(days, destinationCity.tier, cargoUsedPct)
+  // T063: resolve the armed Personal-use plane's bonus, if any is currently
+  // armed AND still valid (the plane exists and is still in 'personal'
+  // status — a stale pointer, e.g. the plane was sold/reassigned since being
+  // armed, is treated as "no bonus" rather than an error).
+  const armedPlaneId = state.armedPersonalUsePlaneId ?? null
+  const armedPlane = armedPlaneId
+    ? (state.planes ?? []).find((p) => p.id === armedPlaneId && p.status === 'personal')
+    : undefined
+  const personalUseBonus = armedPlane ? CONFIG.aviation.classes[armedPlane.class].personalUse : null
+
+  const baseDays = getTravelDays(state.currentCity, destinationCityId)
+  const days = personalUseBonus ? Math.max(1, baseDays - personalUseBonus.travelDaysReduction) : baseDays
+
+  // T063: Freighter/Widebody's cargo-capacity bonus only affects THIS
+  // fare-doubling-threshold check (a bigger effective denominator makes the
+  // >60%-used trigger less likely) — it never touches state.cargoCapacity
+  // itself. `effectiveCargoCapacity` falls back to the real capacity (bonus
+  // 0) for every other class/no-bonus case.
+  const effectiveCargoCapacity = personalUseBonus
+    ? state.cargoCapacity * (1 + personalUseBonus.cargoCapacityBonusPct)
+    : state.cargoCapacity
+  const cargoUsedPct = effectiveCargoCapacity > 0 ? cargoUsed(state) / effectiveCargoCapacity : 0
+
+  const baseFare = calcFare(days, destinationCity.tier, cargoUsedPct)
+  const fare = personalUseBonus ? baseFare * (1 - personalUseBonus.fareReductionPct) : baseFare
 
   // By design (user request): traveling is allowed even if the fare drives
   // cash negative — unlike buy()/stay(), which still reject on insufficient
@@ -166,6 +227,9 @@ export function travel(state: GameState, destinationCityId: string): GameState {
       daysRemaining: days,
       totalDays: days,
     },
+    // T063: single-use — cleared on every successful trip, whether or not a
+    // valid bonus was actually found above (see file header).
+    armedPersonalUsePlaneId: null,
   }
 }
 

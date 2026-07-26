@@ -123,16 +123,20 @@ export interface PriceState {
 // Event (§7 — newspaper/rumor pipeline)
 // ---------------------------------------------------------------------------
 
-/** The 11 base event types from §7's table, plus §14's "Warehouse fire"
- * (T050 — the 12th type; Phase 2's other addition, §16's "Aviation safety
- * incident", is a later phase's job, not added here). NOTE: unlike the
- * original 11, `warehouseFire` is deliberately EXCLUDED from
+/** The 11 base event types from §7's table, plus two Phase 2 additions:
+ * §14's "Warehouse fire" (T050) and §16's "Aviation safety incident" (T065).
+ * NOTE: unlike the original 11, `warehouseFire` is deliberately EXCLUDED from
  * `eventTable.ts`'s `PRICE_EVENT_TYPE_IDS` (the pool `eventEngine.ts`'s
  * `scheduleEvent` draws from) — it never moves a price and is instead fired
  * via its own dedicated daily roll in `warehouse.ts`. See that file's header
  * and `eventTable.ts`'s `warehouseFire` entry for the full rationale. It is
  * still listed here / in `EVENT_TABLE` for data-completeness and so
- * `newspaper.ts`'s generic `EVENT_TABLE[event.typeId]` lookup stays total. */
+ * `newspaper.ts`'s generic `EVENT_TABLE[event.typeId]` lookup stays total.
+ * `aviationSafetyIncident` similarly grounds one random leased plane for
+ * 5-10 days rather than moving any commodity price — see
+ * events/eventTable.ts's entry for it and aviation.ts's file header for how
+ * its non-price "which plane got grounded" effect is represented despite the
+ * `Event` shape below being built entirely around price multipliers. */
 export type EventTypeId =
   | 'bumperHarvest'
   | 'droughtCropFailure'
@@ -146,6 +150,7 @@ export type EventTypeId =
   | 'governmentTariff'
   | 'epidemic'
   | 'warehouseFire'
+  | 'aviationSafetyIncident'
 
 export type EventScope =
   | { kind: 'global' }
@@ -367,6 +372,24 @@ export interface TaxRecord {
    * as `0`/not-applicable wherever read.
    */
   hotelLicenseFeesPaid?: number
+
+  // -------------------------------------------------------------------------
+  // T064 additions (§16 Aviation carrying cost) — both optional, backward
+  // compatible with every TaxRecord produced before Phase 12 (treated as `0`
+  // wherever read: no planes owned that year). See tax.ts's `runYearEnd` doc
+  // comment for the combined-bill / payment-order rationale (tax portion is
+  // deducted from the shared cash+deposits pool BEFORE plane maintenance).
+  // -------------------------------------------------------------------------
+
+  /** Total plane maintenance/insurance billed this fiscal year across every
+   * owned plane (leased or idle), before considering whether it was actually
+   * paid in full — see `planeMaintenancePaid`. `undefined` is equivalent to
+   * `0` (no planes owned, or this record predates Phase 12). */
+  planeMaintenanceOwed?: number
+  /** How much of `planeMaintenanceOwed` was actually covered by cash+deposits
+   * this year-end — may be less than `planeMaintenanceOwed` if the combined
+   * tax+maintenance bill exceeded what was available (see `tax.ts`). */
+  planeMaintenancePaid?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -400,6 +423,74 @@ export interface TravelInProgress {
   destinationCityId: CityId
   daysRemaining: number
   totalDays: number
+}
+
+// ---------------------------------------------------------------------------
+// Plane (§16 — Aviation: Plane Ownership & Leasing, Phase 2 / Phase 12, T060)
+// ---------------------------------------------------------------------------
+
+export type PlaneId = string
+
+/** §16 class table — Prop Feeder, Regional Jet, Freighter, Widebody. See
+ * `CONFIG.aviation.classes` (config.ts) for each class's purchase price,
+ * lease rates, and personal-travel bonus. */
+export type PlaneClass = 'propFeeder' | 'regionalJet' | 'freighter' | 'widebody'
+
+/** §16 per-plane status — the owner picks exactly one at a time. */
+export type PlaneStatus = 'idle' | 'leasedMonthly' | 'leasedAnnual' | 'personal'
+
+export interface Plane {
+  id: PlaneId
+  class: PlaneClass
+  status: PlaneStatus
+  /** City id the plane was bought in (§16/T060: Medium+ bank city gate).
+   * Kept for record/UI display only — no ongoing computation depends on it. */
+  purchaseCityId: CityId
+  purchaseDay: number
+  /**
+   * Snapshot of `CONFIG.aviation.classes[class].purchasePrice` AT PURCHASE
+   * TIME, captured directly on the plane record rather than re-read from
+   * `CONFIG` on every calculation. This mirrors `CargoLot.unitCost`'s
+   * snapshot pattern (FIFO cost basis, above): a later balance-pass edit to
+   * `CONFIG.aviation` must never silently change the cost basis,
+   * depreciation curve, or lease income of a plane a player already owns.
+   */
+  purchasePrice: number
+
+  /**
+   * T062 (§16 Leased Annual) — the day the CURRENT firm 90-day annual-lease
+   * term started. Set by `setPlaneStatus` (aviation.ts) whenever `status`
+   * transitions TO `'leasedAnnual'` (including re-arming an already-annual
+   * plane); cleared back to `undefined` the moment the term ends, whether
+   * naturally (the daily-tick `accruePlaneIncome` auto-reverts to `'idle'`
+   * once `state.day >= annualLeaseStartDay + YEAR_LENGTH_DAYS`) or via
+   * `terminateAnnualLease`'s early-exit penalty. `undefined` whenever
+   * `status !== 'leasedAnnual'`.
+   */
+  annualLeaseStartDay?: number
+
+  /**
+   * T062 (§16 Leased Monthly cancellation) — non-null while a 3-day
+   * cancellation notice is pending: the day on which income actually stops
+   * and this plane auto-reverts to `'idle'` (`state.day` when
+   * `cancelMonthlyLease`, aviation.ts, was called, plus
+   * `CONFIG.aviation.monthlyLeaseCancelNoticeDays`). Income keeps accruing
+   * normally on every day strictly before this one. `undefined` = no
+   * cancellation pending (the normal case for an active Leased Monthly
+   * plane, and always true for every other status).
+   */
+  monthlyLeaseCancelEffectiveDay?: number
+
+  /**
+   * T065 (§16 Events — "Aviation safety incident") — non-null while this
+   * plane is grounded by a fired safety-incident event: the day grounding
+   * ends (`state.day < groundedUntilDay` means still grounded). Lease income
+   * is paused for every day the plane is grounded, but maintenance still
+   * accrues normally (§16: "income paused, maintenance still owed") — see
+   * aviation.ts's `accruePlaneIncome`/`accruePlaneMaintenanceForDay`.
+   * `undefined` = not currently grounded.
+   */
+  groundedUntilDay?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -729,4 +820,54 @@ export interface GameState {
    * entirely for a brand-new run rather than seeding an empty object).
    */
   hotels?: Record<CityId, { tier: number }>
+
+  // ---------------------------------------------------------------------
+  // T060-T065 additions (§16 Aviation — Plane Ownership & Leasing, Phase
+  // 2 / Phase 12) — all optional, backward compatible with every earlier
+  // task's `GameState` fixtures (none of which set any of these; treated as
+  // "no planes owned yet" / "no maintenance accrued yet" / "no bonus armed"
+  // wherever read). See /src/engine/aviation.ts's file header for the full
+  // purchase/status/lease/depreciation/event-interaction rationale.
+  // ---------------------------------------------------------------------
+
+  /**
+   * Every plane the player owns, across every status (Idle/Leased Monthly/
+   * Leased Annual/Personal). `undefined` is equivalent to `[]` (no planes
+   * owned yet) — every reader in this codebase uses `state.planes ?? []`
+   * rather than assuming the array always exists, same convention as
+   * `pendingResolutions`/`taxHistory` elsewhere in this file.
+   */
+  planes?: Plane[]
+
+  /**
+   * Running plane maintenance/insurance accrued SINCE the last fiscal-year
+   * reset (§16: "every owned plane...owes maintenance...billed at
+   * year-end"). Mirrors `realizedProfitThisFiscalYear`/
+   * `depositInterestThisFiscalYear`'s accumulate-daily-then-bill-yearly
+   * pattern exactly: `aviation.ts`'s `accruePlaneMaintenanceForDay` adds one
+   * day's total (across every owned plane, including any active +30%
+   * fuel-price-spike surcharge, T065) each day-tick; `tax.ts`'s
+   * `runYearEnd` reads it, bills it alongside that year's tax, and resets it
+   * to `0`. `undefined` is equivalent to `0`.
+   */
+  planeMaintenanceOwedThisFiscalYear?: number
+
+  /**
+   * T063 (§16 Personal use) — the id of the plane whose fare/travel-days/
+   * cargo-capacity bonus is "armed" for the player's NEXT `travel()` call
+   * only (§16: "applies...to your next Travel action"). Set by
+   * `setPlaneStatus(state, planeId, 'personal')` (aviation.ts) every time a
+   * plane is (re-)assigned Personal-use status — including re-arming a
+   * plane that was already `'personal'` but had already consumed its bonus.
+   * Consumed unconditionally by the next successful `travel()` call
+   * (actions/travel.ts), which resets this back to `null` whether or not
+   * the armed plane actually contributed a bonus (e.g. it was sold or
+   * reassigned in between — a defensive no-op in that edge case, not an
+   * error). If more than one plane is ever set to `'personal'` status, only
+   * the MOST RECENTLY armed one is tracked — see aviation.ts's file header
+   * for why "one bonus armed at a time" is this codebase's interpretation of
+   * the doc's singular "your next Travel action" phrasing. `undefined`/
+   * `null` = no bonus currently armed.
+   */
+  armedPersonalUsePlaneId?: PlaneId | null
 }

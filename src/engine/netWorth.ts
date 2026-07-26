@@ -8,13 +8,14 @@
  *
  * Pure TypeScript, zero React imports (see /src/engine/README.md).
  *
- * Formula (matches §4 exactly, extended by T048/§14 — see that addition's own
- * doc comment below for the warehouse term):
+ * Formula (matches §4 exactly, extended by T048/§14 and T064/§16 — see those
+ * additions' own doc comments below for the warehouse/plane terms):
  *   netWorth = cash
  *            + sum(all bankAccounts' depositBalance)
  *            + sum(carried goods valued at last-known price)
  *            + sum(warehouse-stored goods valued at each city's own
  *              last-known price, §14)
+ *            + sum(owned planes' current depreciated value, §16)
  *            − sum(all bankAccounts' outstanding debt)
  *
  * where "outstanding debt" for a bank account is `loan.principal +
@@ -64,10 +65,26 @@
  * §6's "never leak live remote prices" invariant: `calcWarehouseGoodsValue`
  * only ever reads `lastSeenPrice` (never `currentPrice`), exactly like this
  * file's own cargo-valuation loop above.
+ *
+ * ---------------------------------------------------------------------------
+ * T064 addition (§16 Aviation) — owned planes count toward net worth at
+ * their current DEPRECIATED value
+ * ---------------------------------------------------------------------------
+ * §16: "a plane's value for net worth (§4) and for sale starts at 90% of
+ * purchase price and depreciates 2%/game-year, floored at 40%." Every plane
+ * in `state.planes` contributes `planeDepreciatedValue(plane, state.day)`
+ * (aviation.ts) to the formula below, added alongside cash/deposits/goods
+ * and before debt is subtracted — planes are an ASSET like cargo or
+ * deposits, not a liability, regardless of their current lease status
+ * (Idle/Leased/Personal all count the same toward net worth; only the sale
+ * price differs from lease income, and neither is relevant to THIS
+ * calculation). `state.planes ?? []` mirrors every other optional-array
+ * field's read convention elsewhere in this codebase.
  */
 
 import { GOODS } from './data/goods'
 import { calcWarehouseGoodsValue } from './warehouse'
+import { planeDepreciatedValue } from './aviation'
 import type { GameState } from './types'
 
 /** O(1) good-id -> basePrice lookup, built once from the goods data file. */
@@ -113,7 +130,14 @@ export function calcNetWorth(state: GameState): number {
     }
   }
 
-  return state.cash + deposits + goodsValue + warehouseGoodsValue - debt
+  // T064 addition — see file header. Sums every owned plane's current
+  // depreciated value.
+  let planesValue = 0
+  for (const plane of state.planes ?? []) {
+    planesValue += planeDepreciatedValue(plane, state.day)
+  }
+
+  return state.cash + deposits + goodsValue + warehouseGoodsValue + planesValue - debt
 }
 
 /**

@@ -121,6 +121,45 @@
  * so this row satisfies `EventTypeDef`'s required shape — neither field is
  * ever actually read for this type, since `resolveScopeAndGoods`'s
  * `goodsRule: 'none'` guarantees no price effect can ever result.
+ *
+ * ---------------------------------------------------------------------------
+ * PHASE 2 ADDITION (T065) — "Aviation safety incident" (§16): a non-price
+ * event type, represented as an intentionally INERT price-multiplier entry
+ * ---------------------------------------------------------------------------
+ * §16 adds one new event to this table: "Aviation safety incident — one
+ * random leased plane grounded 5-10 days, income paused, maintenance still
+ * owed". Unlike every other row in this table, its real effect (grounding a
+ * specific `Plane`) has NOTHING to do with commodity prices — the `Event`
+ * shape this whole file is built around (`affectedGoodIds`,
+ * `multiplierMin/Max`, `scope` matched against `City`) has no way to name
+ * "which plane" at all, and was never meant to.
+ *
+ * Rather than bolting plane-specific fields onto the shared `Event`
+ * interface (types.ts) or `EventTypeDef` here — which would leak an
+ * aviation-only concept into a type every OTHER event type also uses, and
+ * would need eventEngine.ts/resolution.ts (both otherwise plane-agnostic) to
+ * import from aviation.ts — this event type is modeled as a deliberately
+ * INERT entry, exactly like Tech breakthrough/New deposit discovered above
+ * (`goodsRule: { kind: 'inertNoV1Good' }`, empty `affectedGoodIds`, so
+ * `getActiveEventEffectsFor` never contributes a price effect for it
+ * regardless of `multiplier`). What this table's ordinary scheduling/
+ * resolution machinery IS reused for, unchanged: the RANDOM 5-10 day
+ * duration draw. `durationDays: { min: 5, max: 10 }` here means
+ * `resolveEvent` (events/resolution.ts, T017) already computes exactly the
+ * concrete `resolvedDurationDays`/`activeUntilDay` this event needs to
+ * describe its grounding window — no new resolution concept required.
+ *
+ * The actual grounding — picking a random currently-leased, not-already-
+ * grounded `Plane` and setting its `groundedUntilDay` — happens in
+ * aviation.ts's `applyAviationSafetyIncidents`, called from turnLoop.ts's
+ * `advanceDay` immediately after `resolveDueEvents` produces this call's
+ * `EventResolution[]` (i.e. the exact moment `fired` becomes `true` for a
+ * same-day-due event — see events/resolution.ts's file header for where
+ * that happens). That function reads the resolved event's own
+ * `activeUntilDay` (already computed by the ordinary machinery above) as the
+ * grounded plane's `groundedUntilDay` — the SAME number, reused directly,
+ * rather than re-deriving a second "how long" concept. See aviation.ts's
+ * file header for the full design writeup.
  */
 
 import type { CityId, EventScope, EventTypeId, GoodId } from '../types'
@@ -436,6 +475,29 @@ export const EVENT_TABLE: Record<EventTypeId, EventTypeDef> = {
       "independent of this table's scheduleEvent/resolveDueEvents pipeline. This entry exists " +
       "purely for EventTypeId/label completeness (e.g. newspaper.ts's generic " +
       'EVENT_TABLE[event.typeId] lookup) — see file header for the full rationale.',
+  },
+
+  aviationSafetyIncident: {
+    typeId: 'aviationSafetyIncident',
+    label: 'Aviation safety incident',
+    // No commodity is affected — see file header's "PHASE 2 ADDITION" note.
+    goodsRule: { kind: 'inertNoV1Good' },
+    scopeRule: { kind: 'fixedGlobal' },
+    // Neutral multiplier (never actually applied to any price, since
+    // affectedGoodIds always resolves empty) — kept at 1.0 purely so this
+    // record has a well-formed, harmless value in every field.
+    multiplier: { kind: 'single', range: { min: 1, max: 1 } },
+    // §16: "grounded 5-10 days" — this IS the real, consumed duration
+    // range: `resolveEvent`'s ordinary duration draw becomes the grounded
+    // plane's active window (see aviation.ts's `applyAviationSafetyIncidents`).
+    durationDays: { min: 5, max: 10 },
+    inertInV1: true,
+    docNote:
+      'Non-price event (§16 Aviation) — grounds one random leased plane instead of moving any ' +
+      'commodity price. Modeled as an inert price entry (empty affectedGoodIds, neutral ' +
+      'multiplier) that reuses only the ordinary schedule/resolve machinery\'s duration draw; ' +
+      'the actual grounding effect is consumed directly by aviation.ts, not by this table or by ' +
+      'getActiveEventEffectsFor. See file header for the full rationale.',
   },
 }
 

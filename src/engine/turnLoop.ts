@@ -281,6 +281,7 @@ import { scheduleEvent } from './events/eventEngine'
 import { accrueTaxDebtInterest, runYearEnd } from './tax'
 import { accrueWarehouseMaintenanceDebtInterest, checkWarehouseFires } from './warehouse'
 import { accruePassiveHotelRevenue } from './hotel'
+import { accruePlaneIncome, accruePlaneMaintenanceForDay, applyAviationSafetyIncidents } from './aviation'
 import type { GameState, GoodId, PriceState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -327,6 +328,14 @@ function createWarehouseFireRng(seed: number, day: number) {
   return createRng(hashStringToUint32(`${seed}:turnLoopWarehouseFire:${day}`))
 }
 
+/** Fresh `Rng` for T065's "Aviation safety incident" grounding pick (which
+ * eligible leased plane gets grounded) — a stream independent of every other
+ * stream above. See aviation.ts's `applyAviationSafetyIncidents` for why
+ * this needs its own draw at all. */
+function createAviationSafetyRng(seed: number, day: number) {
+  return createRng(hashStringToUint32(`${seed}:turnLoopAviationSafety:${day}`))
+}
+
 /**
  * Advances the game by exactly one day:
  *   1. Increments `state.day`.
@@ -353,6 +362,17 @@ export function advanceDay(state: GameState): GameState {
   const eventResolutionRng = createEventResolutionRng(state.seed, newDay)
   const { state: stateAfterResolution, resolutions } = resolveDueEvents({ ...state, day: newDay }, eventResolutionRng)
 
+  // T065: ground one random eligible leased plane for every
+  // "Aviation safety incident" event that just fired THIS SAME resolution
+  // pass (see aviation.ts's `applyAviationSafetyIncidents` file header for
+  // the full rationale on why this is applied here — immediately after
+  // resolution, using the SAME `resolutions` this file already computed —
+  // rather than inside events/resolution.ts itself, which stays entirely
+  // plane-agnostic). Its own independent per-day RNG stream, same pattern as
+  // every other stream in this file.
+  const aviationSafetyRng = createAviationSafetyRng(state.seed, newDay)
+  const stateAfterAviationSafety = applyAviationSafetyIncidents(stateAfterResolution, resolutions, aviationSafetyRng)
+
   // T029: roll whether a NEW event gets scheduled today (see config.ts's
   // `dailySchedulingProbability` doc comment for why this call exists at
   // all — closes a gap where nothing ever produced events for
@@ -361,8 +381,8 @@ export function advanceDay(state: GameState): GameState {
   const eventSchedulingRng = createEventSchedulingRng(state.seed, newDay)
   const stateAfterEvents =
     eventSchedulingRng.next() < CONFIG.events.dailySchedulingProbability
-      ? scheduleEvent(stateAfterResolution, eventSchedulingRng).updatedState
-      : stateAfterResolution
+      ? scheduleEvent(stateAfterAviationSafety, eventSchedulingRng).updatedState
+      : stateAfterAviationSafety
 
   // T050: roll today's Warehouse fire check (per city that owns a warehouse)
   // BEFORE prices/net worth are computed below — see file header's "T050
@@ -505,7 +525,6 @@ export function advanceDay(state: GameState): GameState {
   //      the complete rationale (fiscal-year numbering, deduction order,
   //      the `taxDebt` representation decision, and the Noob first-year
   //      waiver).
-  // ---------------------------------------------------------------------
   const withTaxDebtInterest = accrueTaxDebtInterest(withHotelRevenue)
 
   // ---------------------------------------------------------------------
@@ -519,7 +538,25 @@ export function advanceDay(state: GameState): GameState {
   // ---------------------------------------------------------------------
   const withWarehouseDebtInterest = accrueWarehouseMaintenanceDebtInterest(withTaxDebtInterest)
 
-  return newDay % CONFIG.tax.yearLengthDays === 0
-    ? runYearEnd(withWarehouseDebtInterest)
-    : withWarehouseDebtInterest
+  // ---------------------------------------------------------------------
+  // T061/T064 addition (same additive-step pattern as T022-T030 above) —
+  // §16 Aviation. Two small, independent steps, run AFTER every other daily
+  // accrual above (so they see the day's fully-settled state) and BEFORE
+  // the year-end check below (so a same-day year-end sees today's plane
+  // maintenance already folded into the fiscal-year accumulator):
+  //   1. `accruePlaneIncome` (aviation.ts) credits today's lease income per
+  //      plane status (§16's per-day division rules) and handles the two
+  //      auto-revert-to-Idle transitions (Monthly cancellation notice
+  //      elapsing; Annual firm term completing naturally).
+  //   2. `accruePlaneMaintenanceForDay` (aviation.ts) accrues one day of
+  //      maintenance/insurance (0.3%/month of purchase price, +30% surcharge
+  //      on any day a fuel-price-spike event is active, T065) into
+  //      `state.planeMaintenanceOwedThisFiscalYear`, read and reset by
+  //      `runYearEnd` (tax.ts) below — see aviation.ts's file header for the
+  //      full "accrue daily, bill yearly" rationale.
+  // ---------------------------------------------------------------------
+  const withPlaneIncome = accruePlaneIncome(withWarehouseDebtInterest)
+  const withPlaneMaintenance = accruePlaneMaintenanceForDay(withPlaneIncome)
+
+  return newDay % CONFIG.tax.yearLengthDays === 0 ? runYearEnd(withPlaneMaintenance) : withPlaneMaintenance
 }
