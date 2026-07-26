@@ -234,7 +234,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 5 — Tax & CA
 
-- [ ] **T030 — Tax engine (FIFO realized profit, 90-day year-end, forced loan on shortfall)**
+- [x] **T030 — Tax engine (FIFO realized profit, 90-day year-end, forced loan on shortfall)**
   - Doc references: §10 (tax rules, no-CA rate, forced loan)
   - Dependencies: T012, T015, T023
   - File path hints: `/src/engine/tax.ts`

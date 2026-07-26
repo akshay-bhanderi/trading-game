@@ -155,7 +155,7 @@ describe('travel + advanceTravelDay', () => {
     })
   })
 
-  it('rejects starting a trip when cash is insufficient for the fare, with no mutation', () => {
+  it('allows starting a trip even when cash is insufficient for the fare, going negative (by design)', () => {
     const destinationCity = CITIES.find((c) => c.id === DESTINATION)
     if (!destinationCity) throw new Error('expected Port Vela in CITIES')
 
@@ -170,11 +170,13 @@ describe('travel + advanceTravelDay', () => {
 
     const result = travel(state, DESTINATION)
 
-    expect(result).toBe(state)
-    expect(result.cash).toBe(fare - 1)
-    expect(result.travelInProgress).toBeNull()
-    expect(result.currentCity).toBe(ORIGIN)
-    expect(result.day).toBe(5)
+    expect(result).not.toBe(state)
+    expect(result.cash).toBe(-1)
+    expect(result.travelInProgress).toEqual({
+      destinationCityId: DESTINATION,
+      daysRemaining: days,
+      totalDays: days,
+    })
   })
 
   it('rejects travel to an unknown city id, with no mutation', () => {

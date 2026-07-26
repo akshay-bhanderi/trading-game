@@ -53,6 +53,27 @@
  * keeps `Object.keys(state.cargo)` an accurate "goods I currently own"
  * list for the UI (§12 Market screen), rather than accumulating stale
  * zero-qty entries for every good ever bought and fully sold.
+ *
+ * ---------------------------------------------------------------------------
+ * T030 addition: `realizedProfitThisFiscalYear` accumulation (purely
+ * additive — no change to any existing validation/rejection behavior or to
+ * the cash/cargo/cumulativeTradeVolume math above).
+ * ---------------------------------------------------------------------------
+ * This file's own original header already called out that "a future caller
+ * [T030] can compute `qty * unitPrice - sum(consumed lots' qty * their
+ * unitCost)`" once FIFO consumption happens here. T030 needed that number
+ * SOMEWHERE in `GameState` (§10's taxable base = FIFO realized profit +
+ * deposit interest for the year), and `sell()` is the only place that ever
+ * sees which lots were consumed and at what cost — once a lot is consumed
+ * the cost basis is gone from `state.cargo`, so it cannot be recovered
+ * later by any caller. `sell()` now tracks `consumedCostBasis` alongside the
+ * existing FIFO walk (same loop, one extra running total, no change to what
+ * lots are kept/dropped) and, on success, adds
+ * `(qty * unitPrice) - consumedCostBasis` onto
+ * `state.realizedProfitThisFiscalYear` (defaulting the prior value to `0` if
+ * unset — see types.ts's field doc). `runYearEnd` (/src/engine/tax.ts, T030)
+ * is the sole reader; it resets this field back to `0` at each fiscal
+ * year-end.
  */
 
 import { cargoUsed } from '../cargo'
@@ -121,7 +142,10 @@ export function buy(state: GameState, goodId: GoodId, qty: number, unitPrice: nu
  * the holding is now fully emptied, removes the `CargoHolding` entry from
  * `state.cargo` entirely (see file-level doc comment on this decision).
  * Increments `state.cumulativeTradeVolume` by `qty * unitPrice` (sell
- * proceeds count as volume too, per the task brief).
+ * proceeds count as volume too, per the task brief). Also increments
+ * `state.realizedProfitThisFiscalYear` by `(qty * unitPrice) - (sum of
+ * consumed lots' qty * their unitCost)` (T030, §10 taxable-base input) —
+ * see the file-level "T030 addition" doc comment.
  *
  * Rejected (returns the identical `state` reference, unchanged) when any
  * validation fails.
@@ -133,6 +157,7 @@ export function sell(state: GameState, goodId: GoodId, qty: number, unitPrice: n
   if (!holding || holding.qty < qty) return state
 
   let remainingToConsume = qty
+  let consumedCostBasis = 0
   const remainingLots: CargoLot[] = []
 
   for (const lot of holding.lots) {
@@ -144,15 +169,18 @@ export function sell(state: GameState, goodId: GoodId, qty: number, unitPrice: n
 
     if (lot.qty <= remainingToConsume) {
       // Fully consumed — drop it, keep walking.
+      consumedCostBasis += lot.qty * lot.unitCost
       remainingToConsume -= lot.qty
     } else {
       // Partially consumed — keep the remainder at the same unit cost.
+      consumedCostBasis += remainingToConsume * lot.unitCost
       remainingLots.push({ qty: lot.qty - remainingToConsume, unitCost: lot.unitCost })
       remainingToConsume = 0
     }
   }
 
   const proceeds = qty * unitPrice
+  const realizedProfit = proceeds - consumedCostBasis
   const newCargo = { ...state.cargo }
 
   if (remainingLots.length === 0) {
@@ -172,6 +200,9 @@ export function sell(state: GameState, goodId: GoodId, qty: number, unitPrice: n
     cash: state.cash + proceeds,
     cargo: newCargo,
     cumulativeTradeVolume: state.cumulativeTradeVolume + proceeds,
+    // T030 addition — see file header. Purely additive: does not affect
+    // cash/cargo/cumulativeTradeVolume above or any validation path.
+    realizedProfitThisFiscalYear: (state.realizedProfitThisFiscalYear ?? 0) + realizedProfit,
   }
 }
 

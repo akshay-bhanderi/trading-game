@@ -246,6 +246,7 @@
 
 import { CITIES } from './data/cities'
 import { GOODS } from './data/goods'
+import { CONFIG } from './config'
 import { computePrice } from './priceEngine'
 import { createRng } from './rng'
 import { updatePeakNetWorth } from './netWorth'
@@ -254,6 +255,7 @@ import { accrueDepositInterest } from './bank/deposits'
 import { accrueLoanInterest } from './bank/loans'
 import { checkRestructureRecheck, updateDefaultTrigger } from './bank/default'
 import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
+import { accrueTaxDebtInterest, runYearEnd } from './tax'
 import type { GameState, GoodId, PriceState } from './types'
 
 // ---------------------------------------------------------------------------
@@ -402,5 +404,33 @@ export function advanceDay(state: GameState): GameState {
   //      at that point. See bank/default.ts's file header for full
   //      rationale on both steps.
   // ---------------------------------------------------------------------
-  return checkRestructureRecheck(updateDefaultTrigger(withLoanInterest))
+  const withDefaultFlow = checkRestructureRecheck(updateDefaultTrigger(withLoanInterest))
+
+  // ---------------------------------------------------------------------
+  // T030 addition (same additive-step pattern as T022-T024 above) — §10
+  // "Tax & CA System". Two small, independent steps:
+  //   1. `accrueTaxDebtInterest` (tax.ts) accrues one day of simple daily
+  //      interest on any outstanding forced tax-shortfall debt
+  //      (`state.taxDebt`, at the Huge-bank penalty rate), mirroring
+  //      `accrueLoanInterest`'s simple-interest pattern — a no-op when
+  //      there is no outstanding tax debt. Runs UNCONDITIONALLY every day,
+  //      like the other daily accrual steps above (T022/T023), so it keeps
+  //      growing exactly like a real overdue loan would even outside a
+  //      year-end tick.
+  //   2. `runYearEnd` (tax.ts) fires ONLY when `newDay` is an exact
+  //      multiple of `CONFIG.tax.yearLengthDays` (90, i.e. days 90, 180,
+  //      270...) — computes the fiscal year's tax bill from FIFO realized
+  //      profit (accumulated by trade.ts's `sell`, T012/T030) + deposit
+  //      interest earned (accumulated by deposits.ts's
+  //      `accrueDepositInterest`, T022/T030), deducts it (cash first, then
+  //      deposits, then a forced loan on any remaining shortfall), records
+  //      a `TaxRecord`, and resets the fiscal-year accumulators. Runs AFTER
+  //      every other daily accrual/default step above, so tax sees the
+  //      FULLY settled numbers for the day. See tax.ts's file header for
+  //      the complete rationale (fiscal-year numbering, deduction order,
+  //      the `taxDebt` representation decision, and the Noob first-year
+  //      waiver).
+  // ---------------------------------------------------------------------
+  const withTaxDebtInterest = accrueTaxDebtInterest(withDefaultFlow)
+  return newDay % CONFIG.tax.yearLengthDays === 0 ? runYearEnd(withTaxDebtInterest) : withTaxDebtInterest
 }

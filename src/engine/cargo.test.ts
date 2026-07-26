@@ -57,14 +57,28 @@ describe('cargoUsed', () => {
 })
 
 describe('buyCargoUpgrade', () => {
-  it('walks the full upgrade path 40 -> 100 -> 250 -> 600 -> 1500, deducting cash exactly per tier', () => {
-    // Enough cash to fund the entire ladder: 2,500 + 12,000 + 60,000 + 300,000.
-    const totalCost = CONFIG.cargo.upgrades.reduce((sum, t) => sum + t.cost, 0)
+  // T029 note: `CONFIG.cargo.startingCapacity` was raised from the doc's
+  // original 40 during the T029 balance pass (see config.ts's own doc
+  // comment on `CARGO.startingCapacity` for the full rationale). This test
+  // no longer assumes a specific starting value or a specific number of
+  // reachable tiers — it dynamically walks whatever tiers in
+  // `CONFIG.cargo.upgrades` have `capacity > startingCapacity` (there may be
+  // anywhere from 0 to all 4, depending on config), so it keeps verifying
+  // the SAME behavioral invariant (walks each reachable tier in order,
+  // deducting the right cost, ends at the max reachable capacity with the
+  // right cash spent, then rejects any further attempt) regardless of what
+  // `startingCapacity` happens to be tuned to.
+  it('walks every remaining upgrade tier above the starting capacity, in order, deducting cash exactly per tier', () => {
+    const reachableTiers = CONFIG.cargo.upgrades.filter((t) => t.capacity > CONFIG.cargo.startingCapacity)
+    expect(reachableTiers.length).toBeGreaterThan(0) // sanity: at least one tier must still be buyable
+
+    // Enough cash to fund every reachable tier.
+    const totalCost = reachableTiers.reduce((sum, t) => sum + t.cost, 0)
     let state = makeState({ cash: totalCost, cargoCapacity: CONFIG.cargo.startingCapacity })
 
-    expect(state.cargoCapacity).toBe(40)
+    expect(state.cargoCapacity).toBe(CONFIG.cargo.startingCapacity)
 
-    for (const tier of CONFIG.cargo.upgrades) {
+    for (const tier of reachableTiers) {
       const cashBefore = state.cash
       const next = buyCargoUpgrade(state)
 
@@ -76,22 +90,27 @@ describe('buyCargoUpgrade', () => {
       state = next
     }
 
-    // Full ladder consumed: capacity at max tier, all cash spent.
-    expect(state.cargoCapacity).toBe(1_500)
+    // Every reachable tier consumed: capacity at the ladder's max, all cash spent.
+    const maxCapacity = Math.max(...CONFIG.cargo.upgrades.map((t) => t.capacity))
+    expect(state.cargoCapacity).toBe(maxCapacity)
     expect(state.cash).toBe(0)
 
     // No further tier to buy — next attempt is rejected (identical reference).
     const noMoreTiers = buyCargoUpgrade(state)
     expect(noMoreTiers).toBe(state)
-    expect(noMoreTiers.cargoCapacity).toBe(1_500)
+    expect(noMoreTiers.cargoCapacity).toBe(maxCapacity)
   })
 
   it('rejects an upgrade attempt with insufficient cash, with no state mutation', () => {
-    const firstTier = CONFIG.cargo.upgrades[0]
-    if (!firstTier) throw new Error('expected at least one cargo upgrade tier in config')
+    // T029 note: "the next reachable tier" (the first tier whose capacity
+    // exceeds the current `startingCapacity`), not necessarily
+    // `upgrades[0]` — see the "walks every remaining upgrade tier" test
+    // above for why this is computed dynamically rather than assumed.
+    const nextTier = CONFIG.cargo.upgrades.find((t) => t.capacity > CONFIG.cargo.startingCapacity)
+    if (!nextTier) throw new Error('expected at least one reachable cargo upgrade tier in config')
 
     const state = makeState({
-      cash: firstTier.cost - 1, // one dollar short
+      cash: nextTier.cost - 1, // one dollar short
       cargoCapacity: CONFIG.cargo.startingCapacity,
     })
 
@@ -99,7 +118,7 @@ describe('buyCargoUpgrade', () => {
 
     // Rejected: identical reference, nothing changed.
     expect(result).toBe(state)
-    expect(result.cash).toBe(firstTier.cost - 1)
+    expect(result.cash).toBe(nextTier.cost - 1)
     expect(result.cargoCapacity).toBe(CONFIG.cargo.startingCapacity)
   })
 
@@ -108,18 +127,18 @@ describe('buyCargoUpgrade', () => {
     const result = buyCargoUpgrade(state)
     expect(result).toBe(state)
     expect(result.cash).toBe(0)
-    expect(result.cargoCapacity).toBe(40)
+    expect(result.cargoCapacity).toBe(CONFIG.cargo.startingCapacity)
   })
 
   it('succeeds exactly at the boundary when cash equals the tier cost', () => {
-    const firstTier = CONFIG.cargo.upgrades[0]
-    if (!firstTier) throw new Error('expected at least one cargo upgrade tier in config')
+    const nextTier = CONFIG.cargo.upgrades.find((t) => t.capacity > CONFIG.cargo.startingCapacity)
+    if (!nextTier) throw new Error('expected at least one reachable cargo upgrade tier in config')
 
-    const state = makeState({ cash: firstTier.cost, cargoCapacity: CONFIG.cargo.startingCapacity })
+    const state = makeState({ cash: nextTier.cost, cargoCapacity: CONFIG.cargo.startingCapacity })
     const result = buyCargoUpgrade(state)
 
     expect(result).not.toBe(state)
     expect(result.cash).toBe(0)
-    expect(result.cargoCapacity).toBe(firstTier.capacity)
+    expect(result.cargoCapacity).toBe(nextTier.capacity)
   })
 })

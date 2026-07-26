@@ -493,4 +493,68 @@ export interface GameState {
    * becomes true.
    */
   gameOver?: boolean
+
+  // ---------------------------------------------------------------------
+  // T030 additions (§10 Tax & CA System) — all optional, backward
+  // compatible with every earlier task's `GameState` fixtures (none of
+  // which set any of these; treated as "0 accumulated so far" / "no
+  // outstanding tax debt" wherever read). See /src/engine/tax.ts's file
+  // header for the full accumulation/year-end/forced-loan rationale.
+  // ---------------------------------------------------------------------
+
+  /**
+   * Running FIFO-realized trading profit accumulated SINCE the last
+   * fiscal-year reset (§10: "taxable base = realized profit for the year
+   * (sum of sell proceeds - matched buy costs, FIFO)"). Incremented by
+   * `sell()` (/src/engine/actions/trade.ts, T012/T030) on every successful
+   * sale — `sell()` already has exact access to which FIFO lots were
+   * consumed and at what cost, which is the only place this number can be
+   * computed correctly (once a lot is consumed, its cost basis is gone
+   * from `state.cargo`). Reset to `0` by `runYearEnd` (tax.ts) at the end
+   * of every fiscal year, whether or not tax was actually charged that
+   * year (e.g. Noob's first-year waiver still resets it). `undefined` is
+   * equivalent to `0` (nothing realized yet).
+   */
+  realizedProfitThisFiscalYear?: number
+
+  /**
+   * Running deposit interest credited SINCE the last fiscal-year reset
+   * (§10: taxable base also includes "deposit interest earned"). Summed
+   * across every account by `accrueDepositInterest`
+   * (/src/engine/bank/deposits.ts, T022/T030) each time it runs — that
+   * function is the only place total interest credited THIS DAY, across
+   * every city, is known before it's folded into each account's compounded
+   * `depositBalance`. Reset to `0` by `runYearEnd` (tax.ts) at the end of
+   * every fiscal year, same as `realizedProfitThisFiscalYear`. `undefined`
+   * is equivalent to `0`.
+   */
+  depositInterestThisFiscalYear?: number
+
+  /**
+   * Non-null while the player owes an outstanding forced tax-shortfall
+   * loan (§10: "if cash + deposits can't cover it, the shortfall becomes a
+   * forced Huge-bank loan at penalty rate 1.2%/day"). Deliberately a
+   * SEPARATE top-level field rather than a `Loan` living inside
+   * `bankAccounts` (§9's `BankAccount`/`Loan` shape) — the tax authority
+   * isn't tied to any one city's bank (v1 has no reachable Huge-bank city
+   * at all, per §13), so there is no `cityId` this debt could sensibly be
+   * keyed under. It still conceptually accrues the same way a `Loan` does
+   * (simple daily interest on `principal`, via `accrueTaxDebtInterest`,
+   * wired into `advanceDay` alongside the other daily bank accruals) and
+   * can be paid down via `repayTaxDebt` (tax.ts) — both mirror
+   * `accrueLoanInterest`/`repayLoan` (/src/engine/bank/loans.ts) structure
+   * and interest-first repayment order. `null`/`undefined` = no
+   * outstanding tax debt.
+   */
+  taxDebt?: {
+    principal: number
+    /** Simple daily interest accrued so far, at
+     * `CONFIG.tax.forcedLoanPenaltyDailyRate` (1.2%/day) — see
+     * `accrueTaxDebtInterest` (tax.ts). */
+    accruedInterest: number
+    /** Day this debt was first created (or, if the player already had tax
+     * debt from a prior shortfall, the ORIGINAL day it was first created —
+     * a later top-up from a second shortfall does not reset this). */
+    startDay: number
+  } | null
 }

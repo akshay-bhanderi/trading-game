@@ -130,10 +130,14 @@ import { advanceDay } from '../turnLoop'
  * `state.currentCity` is left untouched — arrival happens via
  * `advanceTravelDay`, once `daysRemaining` reaches 0 (see file header).
  *
+ * By design, travel is allowed even if `fare` exceeds `state.cash` — cash
+ * is deducted unconditionally and may go negative. This is a deliberate
+ * departure from `buy()`/`stay()`'s "reject on insufficient cash" rule,
+ * per an explicit user request; it does not gate on `state.cash` at all.
+ *
  * Rejected (returns the identical `state` reference, unchanged) when:
  *   - `destinationCityId` is not a known city in `CITIES`, or
- *   - a trip is already in progress (`state.travelInProgress !== null`), or
- *   - `state.cash < fare`.
+ *   - a trip is already in progress (`state.travelInProgress !== null`).
  */
 export function travel(state: GameState, destinationCityId: string): GameState {
   const destinationCity = CITIES.find((c) => c.id === destinationCityId)
@@ -151,11 +155,9 @@ export function travel(state: GameState, destinationCityId: string): GameState {
   const cargoUsedPct = cargoUsed(state) / state.cargoCapacity
   const fare = calcFare(days, destinationCity.tier, cargoUsedPct)
 
-  if (state.cash < fare) {
-    // Insufficient cash — reject with no mutation.
-    return state
-  }
-
+  // By design (user request): traveling is allowed even if the fare drives
+  // cash negative — unlike buy()/stay(), which still reject on insufficient
+  // cash. Cash is deducted unconditionally below.
   return {
     ...state,
     cash: state.cash - fare,

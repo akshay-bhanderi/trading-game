@@ -198,3 +198,57 @@ describe('accrueDepositInterest', () => {
     expect(result).toBe(state)
   })
 })
+
+describe('accrueDepositInterest — depositInterestThisFiscalYear accumulation (T030)', () => {
+  it('accumulates the exact interest amount credited across all accounts in a single call', () => {
+    const state = makeState({
+      bankAccounts: {
+        farrow: { cityId: 'farrow', depositBalance: 1_000, loan: null }, // Small, 0.001/day
+        'port-vela': { cityId: 'port-vela', depositBalance: 2_000, loan: null }, // Medium, 0.0014/day
+      },
+    })
+
+    const result = accrueDepositInterest(state)
+
+    const expectedInterest = 1_000 * CONFIG.banking.depositInterestDailyRates.Small +
+      2_000 * CONFIG.banking.depositInterestDailyRates.Medium
+    expect(result.depositInterestThisFiscalYear).toBeCloseTo(expectedInterest, 6)
+  })
+
+  it('defaults a missing prior depositInterestThisFiscalYear to 0 before accumulating', () => {
+    const state = makeState({
+      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 10_000, loan: null } },
+    })
+    expect(state.depositInterestThisFiscalYear).toBeUndefined()
+
+    const result = accrueDepositInterest(state)
+
+    expect(result.depositInterestThisFiscalYear).toBeCloseTo(10_000 * CONFIG.banking.depositInterestDailyRates.Small, 6)
+  })
+
+  it('accumulates across multiple days on top of a pre-existing running total', () => {
+    let state = makeState({
+      depositInterestThisFiscalYear: 50,
+      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 10_000, loan: null } },
+    })
+
+    state = accrueDepositInterest(state)
+    state = accrueDepositInterest(state)
+
+    // Day 1 interest: 10,000 * rate. Day 2 interest: (10,000 + day1 interest) * rate.
+    const rate = CONFIG.banking.depositInterestDailyRates.Small
+    const day1Interest = 10_000 * rate
+    const day2Interest = (10_000 + day1Interest) * rate
+    expect(state.depositInterestThisFiscalYear).toBeCloseTo(50 + day1Interest + day2Interest, 6)
+  })
+
+  it('does not accumulate when there is nothing to accrue (identical state reference)', () => {
+    const state = makeState({
+      depositInterestThisFiscalYear: 20,
+      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: null } },
+    })
+    const result = accrueDepositInterest(state)
+    expect(result).toBe(state)
+    expect(result.depositInterestThisFiscalYear).toBe(20)
+  })
+})

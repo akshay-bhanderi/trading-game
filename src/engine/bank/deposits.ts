@@ -115,10 +115,29 @@ export function withdraw(state: GameState, cityId: CityId, amount: number): Game
  * Pure function: returns a NEW `GameState` on any change; returns the
  * identical `state` reference, unchanged, when there is nothing to accrue
  * (no accounts, or every account's `depositBalance` is 0).
+ *
+ * ---------------------------------------------------------------------------
+ * T030 addition: `depositInterestThisFiscalYear` accumulation (purely
+ * additive — no change to the per-account compounding math above, and the
+ * "identical `state` reference when nothing to accrue" contract is
+ * preserved).
+ * ---------------------------------------------------------------------------
+ * §10's taxable base includes "deposit interest earned" for the year, but
+ * nothing previously tracked that total anywhere — this function compounds
+ * `depositBalance` in place and discards the per-day interest amount once
+ * folded in. This function is the only place the TOTAL interest credited
+ * across every city THIS CALL is known before it disappears into each
+ * account's new balance, so it now also sums `interestEarned` (`balance *
+ * rate`, the exact amount added to each account) across every account
+ * touched and adds that total onto `state.depositInterestThisFiscalYear`
+ * (defaulting the prior value to `0` if unset — see types.ts's field doc).
+ * `runYearEnd` (/src/engine/tax.ts, T030) is the sole reader; it resets this
+ * field back to `0` at each fiscal year-end.
  */
 export function accrueDepositInterest(state: GameState): GameState {
   let changed = false
   const newAccounts: Record<CityId, BankAccount> = { ...state.bankAccounts }
+  let totalInterestEarned = 0
 
   for (const cityId of Object.keys(state.bankAccounts)) {
     const account = state.bankAccounts[cityId]
@@ -128,11 +147,18 @@ export function accrueDepositInterest(state: GameState): GameState {
     if (!city) continue // defensive — should never happen, see doc comment above
 
     const rate = CONFIG.banking.depositInterestDailyRates[city.bankSize]
-    newAccounts[cityId] = { ...account, depositBalance: account.depositBalance * (1 + rate) }
+    const interestEarned = account.depositBalance * rate
+    newAccounts[cityId] = { ...account, depositBalance: account.depositBalance + interestEarned }
+    totalInterestEarned += interestEarned
     changed = true
   }
 
   if (!changed) return state
 
-  return { ...state, bankAccounts: newAccounts }
+  return {
+    ...state,
+    bankAccounts: newAccounts,
+    // T030 addition — see doc comment above. Purely additive.
+    depositInterestThisFiscalYear: (state.depositInterestThisFiscalYear ?? 0) + totalInterestEarned,
+  }
 }

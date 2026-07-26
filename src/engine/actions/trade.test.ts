@@ -204,3 +204,44 @@ describe('sell — validation', () => {
     expect(result.cumulativeTradeVolume).toBe(cumBeforeSell + 5 * 30)
   })
 })
+
+describe('sell — realizedProfitThisFiscalYear accumulation (T030)', () => {
+  it('accumulates FIFO-matched realized profit across multiple sells against a hand-computed example', () => {
+    let state = makeState({ cash: 1000 })
+    state = buy(state, 'grain', 10, 10) // lot A: 10 @ $10
+    state = buy(state, 'grain', 20, 16) // lot B: 20 @ $16
+    state = buy(state, 'grain', 5, 20) // lot C: 5 @ $20
+
+    // Sell 1: 15 units @ $25 -> consumes all of lot A (10 @ $10) + 5 of lot B (@ $16)
+    // realized = 15*25 - (10*10 + 5*16) = 375 - 180 = 195
+    const afterFirstSell = sell(state, 'grain', 15, 25)
+    expect(afterFirstSell.realizedProfitThisFiscalYear).toBe(195)
+
+    // Sell 2: 10 units @ $30 -> consumes remaining 15 of lot B (@ $16), only 10 taken
+    // realized = 10*30 - 10*16 = 300 - 160 = 140
+    const afterSecondSell = sell(afterFirstSell, 'grain', 10, 30)
+    expect(afterSecondSell.realizedProfitThisFiscalYear).toBe(195 + 140)
+  })
+
+  it('defaults a missing prior realizedProfitThisFiscalYear to 0 before accumulating', () => {
+    let state = makeState({ cash: 1000 })
+    expect(state.realizedProfitThisFiscalYear).toBeUndefined()
+    state = buy(state, 'grain', 10, 10)
+    const result = sell(state, 'grain', 10, 15)
+    expect(result.realizedProfitThisFiscalYear).toBe(10 * 15 - 10 * 10) // 50
+  })
+
+  it('accounts for realized LOSSES too (a sell below cost basis produces a negative delta)', () => {
+    let state = makeState({ cash: 1000, realizedProfitThisFiscalYear: 100 })
+    state = buy(state, 'grain', 10, 20)
+    const result = sell(state, 'grain', 10, 12) // sold below cost -> loss of 80
+    expect(result.realizedProfitThisFiscalYear).toBe(100 - 80)
+  })
+
+  it('does not accumulate realized profit on a rejected sell', () => {
+    const state = makeState({ cash: 1000, realizedProfitThisFiscalYear: 50 })
+    const result = sell(state, 'iron', 1, 25) // never owned -> rejected
+    expect(result).toBe(state)
+    expect(result.realizedProfitThisFiscalYear).toBe(50)
+  })
+})
