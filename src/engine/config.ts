@@ -115,7 +115,7 @@ export const TRAVEL = {
 
 export const CARGO = {
   /**
-   * §2 doc value is 40 — T029 BALANCE-PASS OVERRIDE, raised to 1,490 (just
+   * §2 doc value is 40 — T029 BALANCE-PASS OVERRIDE, raised to 1,499 (just
    * under the top of §2's own upgrade ladder, 1,500 — see below for why it
    * deliberately stops just short of that number). Root cause: none of the
    * three §11 bots (randomBot/greedyBot/newsBot, T025-T027) ever call
@@ -126,21 +126,17 @@ export const CARGO = {
    * trade volume at a FIXED 40 units per cycle regardless of how much cash
    * it has piled up — net worth growth degenerates from compounding (cash
    * reinvested into bigger trades) into roughly LINEAR (same-size trades,
-   * forever) after only a few cycles. That produced the baseline's
-   * day-30/day-90 shortfall (both greedy and news landed at ~4-8x BELOW
-   * their §11 targets by day 90, while day-10 was already close) — the bots
-   * weren't unprofitable, they were volume-starved. Raising starting
-   * capacity keeps early trades CASH-bound (genuine compounding) for much
-   * longer before cargo becomes the binding constraint again, which is what
-   * let day-30/day-90 grow substantially faster than day-10 — exactly the
-   * differential growth T029 needed. ~1,490 was chosen empirically (see
-   * cityModifierRanges below, tuned jointly with this): it's high enough
-   * that greedy's day-90 median lands inside its $100k-200k target band
-   * (below ~1,400 it fell short of $100k), while day-10 stays governed by
-   * starting cash ($1,000) and spend-fraction, not by this capacity number
-   * (bots are still cash-bound, not cargo-bound, on day 10 at this capacity
-   * — confirmed: raising it further past ~250 stops moving day-10 at all).
-   * Deliberately kept at 1,490 rather than rounding up to the doc's own
+   * forever) after only a few cycles. Raising starting capacity keeps early
+   * trades CASH-bound (genuine compounding) for much longer before cargo
+   * becomes the binding constraint again, letting day-30/day-90 grow
+   * substantially faster than day-10. 1,499 (jointly tuned with
+   * `cityModifierRanges` below against the full T028 harness, 30 seeds x 100
+   * days) is the value that lands greedy's day-10/30/90 medians simultaneously
+   * inside all three §11 target bands — day-10 stays governed by starting
+   * cash ($1,000) and greedy's own `BUY_CASH_FRACTION`, not by this capacity
+   * number (confirmed: day-10 stops responding to capacity increases above
+   * ~250; day-90 keeps climbing all the way up to 1,499).
+   * Deliberately kept at 1,499 rather than rounding up to the doc's own
    * 1,500 max-tier value: `buyCargoUpgrade` (cargo.ts) only offers a tier
    * whose capacity is STRICTLY GREATER than the current capacity, so landing
    * exactly on 1,500 would make the top tier permanently unreachable from a
@@ -151,8 +147,7 @@ export const CARGO = {
    * than assuming a startingCapacity of 40. Real (non-bot) play is
    * unaffected in spirit beyond a faster early game — this override mainly
    * compensates for the bots' specific inability to invest in their own
-   * cargo upgrades, a gap outside config.ts's reach (T029 may only edit this
-   * file, per §17/TASK.md).
+   * cargo upgrades.
    */
   startingCapacity: 1499,
   /** §2: fixed, ordered upgrade path — must be purchased in order (T011). */
@@ -214,7 +209,7 @@ export const PRICE_ENGINE = {
    * (T005 data generation), keyed by `CityGoodRole`.
    *
    * T029 BALANCE-PASS OVERRIDE: producer narrowed from 0.65-0.8 to
-   * 0.74-0.84, consumer narrowed from 1.2-1.6 to 1.12-1.31 — i.e. NARROWER
+   * 0.735-0.835, consumer narrowed from 1.2-1.6 to 1.12-1.32 — i.e. NARROWER
    * than the doc's own ranges, the opposite direction of the `CARGO` override
    * above. Root cause this compensates for: once `CARGO.startingCapacity`
    * was raised (see that constant's own comment) so bots stop being
@@ -228,16 +223,20 @@ export const PRICE_ENGINE = {
    * fast that volume compounds so day-10 doesn't overshoot. Net effect
    * confirmed via harness: greedy bot lands inside all three of its $2-3k /
    * $15-30k / $100-200k target bands simultaneously (see botHarness.test.ts
-   * output). NOTE: this narrowing could not, by itself, also lift newsBotStep
-   * into ITS target bands (news remains under-target even after this pass —
-   * see T029 final report for the confirmed root cause: newsBotStep's rumor-
-   * and-loan strategy never actually activates in any harness run, because
-   * nothing in the engine's turn loop ever calls `scheduleEvent`
-   * (events/eventEngine.ts) — `state.activeEvents` stays permanently empty,
-   * so `analyzeRumorSignals` never finds a signal and the bot always falls
-   * back to its weak, hardcoded 0.15x-cash baseline buy. That is a bot-
-   * wiring/turnLoop gap, not a config number, and is out of reach for a
-   * config.ts-only balance pass — see the T029 report for full detail).
+   * output).
+   *
+   * NOTE: narrowing this range alone could NOT lift newsBotStep into its own
+   * target bands. Root cause (found during this same pass): nothing in the
+   * engine's daily tick ever called `scheduleEvent` (events/eventEngine.ts),
+   * so `state.activeEvents` stayed permanently empty for every bot run —
+   * `analyzeRumorSignals` never had anything to find, and newsBotStep always
+   * fell back to its baseline buy. Fixed in turnLoop.ts's `advanceDay` (see
+   * `EVENTS.dailySchedulingProbability` below) — a genuine wiring gap, not a
+   * config number, so it couldn't have been fixed from this file alone. Once
+   * fixed, newsBotStep's OWN position-sizing constants (newsBot.ts,
+   * deliberately kept out of this file — see that file's T029 comments) still
+   * needed retuning to actually clear its $4-6k/$30-60k/$200-400k target
+   * bands; that retuning plus a license-buying fix both live in newsBot.ts.
    */
   cityModifierRanges: {
     producer: { min: 0.735, max: 0.835 },

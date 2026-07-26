@@ -266,23 +266,24 @@ describe('buyIntoRumor — loan-taking under favorable conditions', () => {
       bankAccounts: {},
       priceStates: {
         farrow: {
-          grain: { cityId: 'farrow', goodId: 'grain', currentPrice: 100, lastSeenPrice: 100, lastSeenDay: 1, trendPosition: 0 },
+          grain: { cityId: 'farrow', goodId: 'grain', currentPrice: 70, lastSeenPrice: 70, lastSeenDay: 1, trendPosition: 0 },
         },
       },
     })
 
-    // High-confidence UP signal: target spend = 1.5 * 200 = 300 -> targetQty
-    // = min(40, floor(300/100)) = 3 -> targetCost = 300 > cash (200) ->
-    // shortfall = 100, well within the Small-bank/rank-1 cap of $1,000.
+    // T029: HIGH_CONFIDENCE_TARGET_SPEND_FRACTION is now 1.3 (was 1.5) — see
+    // newsBot.ts's own T029 comment for why. Target spend = 1.3 * 200 = 260 ->
+    // targetQty = min(40, floor(260/70)) = 3 -> targetCost = 210 > cash (200)
+    // -> shortfall = 10, well within the Small-bank/rank-1 cap of $1,000.
     const result = buyIntoRumor(state, { goodId: 'grain', direction: 'up', confidence: 'high' })
 
     expect(result).not.toBe(state)
     expect(result.bankAccounts['farrow']?.loan).not.toBeNull()
     expect(result.bankAccounts['farrow']?.loan?.principal).toBeGreaterThan(0)
     expect(result.cargo['grain']?.qty).toBe(3)
-    // Cash: started with 200, +loan principal, -cost of 3 units at 100 each.
+    // Cash: started with 200, +loan principal, -cost of 3 units at 70 each.
     const loanPrincipal = result.bankAccounts['farrow']?.loan?.principal ?? 0
-    expect(result.cash).toBeCloseTo(200 + loanPrincipal - 300, 6)
+    expect(result.cash).toBeCloseTo(200 + loanPrincipal - 210, 6)
   })
 
   it('does NOT take a loan for a low-confidence (gossip) signal, even if cash alone cannot cover the smaller target', () => {

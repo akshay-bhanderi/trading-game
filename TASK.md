@@ -223,7 +223,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `runHarness({ bot, seedsCount, days })` simulates N seeded games (must support the full spec of 1,000 seeds × 360 days, though CI-run tests may use a smaller sample for speed) and returns per-day-checkpoint net worth stats (median, etc.) per bot. A test/report step checks: random bot median net worth at day 90 < $10k; greedy bot ≈0.5× the §11 targets; news bot ≈ the §11 targets; no bot exceeds 3× targets; Expert-mode bankruptcy rate ≈25–40% by day 90. This test is REQUIRED to exist and pass (or to clearly report which check fails, feeding into T029) — per the task's mandate that harness/price-engine tests are non-negotiable.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T029 — First balance pass (tune config.ts against §11 targets)**
+- [x] **T029 — First balance pass (tune config.ts against §11 targets)**
   - Doc references: §11 (targets table), §3 (difficulty multipliers)
   - Dependencies: T028, T003
   - File path hints: `/src/engine/config.ts` (edits only — no new files)

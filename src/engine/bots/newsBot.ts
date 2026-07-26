@@ -59,7 +59,7 @@
  * Position sizing and loans
  * ---------------------------------------------------------------------------
  * A high-confidence (wire) UP signal targets spending
- * `HIGH_CONFIDENCE_TARGET_SPEND_FRACTION` (1.5x) of current cash on the
+ * `HIGH_CONFIDENCE_TARGET_SPEND_FRACTION` (1.3x) of current cash on the
  * rumored good — deliberately MORE than the bot currently has, so that when
  * cash alone can't cover the target position, `buyIntoRumor` opportunistically
  * calls `takeLoan(state, state.currentCity, shortfall)` to close the gap
@@ -69,8 +69,11 @@
  * on rejection the bot simply falls back to buying what cash alone affords.
  * A low-confidence (gossip) UP signal targets a smaller 0.35x-of-cash
  * position and never attempts a loan. A quiet news day (no actionable UP
- * signal at all) falls back to a modest 0.15x-of-cash "cheapest relative to
- * base price" opportunistic buy, so the bot isn't fully idle between rumors.
+ * signal at all) falls back to an opportunistic "cheapest relative to base
+ * price" buy sized by `baselineSpendFraction(state.day)` — see that
+ * function's own T029 doc comment for why the fraction is higher in an early
+ * warm-up window and lower thereafter, so the bot isn't fully idle between
+ * rumors at ANY point in a run.
  *
  * A DOWN signal for a good the bot currently holds triggers an immediate
  * local sell IF the current price still covers the holding's average buy
@@ -134,7 +137,7 @@ import { generateDailyPaper } from '../newspaper'
 import type { Rng } from '../rng'
 import { advanceDay } from '../turnLoop'
 import type { CityId, Event, GameState, GoodId, NewspaperStory } from '../types'
-import { checkCityUnlocks, checkGoodUnlocks } from '../unlocks'
+import { buyLicense, checkCityUnlocks, checkGoodUnlocks } from '../unlocks'
 
 // ---------------------------------------------------------------------------
 // Bot-local strategy tuning knobs (deliberately NOT in /src/engine/config.ts
@@ -144,12 +147,43 @@ import { checkCityUnlocks, checkGoodUnlocks } from '../unlocks'
 // ---------------------------------------------------------------------------
 
 /** High-confidence (wire) rumor: target spending MORE than current cash on
- * the rumored good (1.5x), intentionally requiring a loan for the excess. */
-const HIGH_CONFIDENCE_TARGET_SPEND_FRACTION = 1.5
+ * the rumored good (2x), intentionally requiring a loan for the excess. */
+const HIGH_CONFIDENCE_TARGET_SPEND_FRACTION = 1.3
 /** Low-confidence (gossip) rumor: a smaller, cash-only position. */
 const LOW_CONFIDENCE_TARGET_SPEND_FRACTION = 0.35
-/** No rumor signal at all today: a modest opportunistic buy. */
-const BASELINE_SPEND_FRACTION = 0.15
+/**
+ * T029 REVISION: no rumor signal at all today: an opportunistic buy. Root
+ * cause this fixes: actionable rumor signals are rare in practice (most
+ * scheduled events are scoped to a city/tier the bot isn't currently in, or
+ * to a good it hasn't licensed — see `maybeBuyLicense` below for the other
+ * half of this fix), so this baseline path governs the vast majority of this
+ * bot's trading days, especially early on before enough events have
+ * accumulated for a same-city match to be likely. The OLD flat 0.15 fraction
+ * capped this bot's compounding WELL below even greedy's blind spread-
+ * chasing (§11 expects the opposite ordering: news bot ~= the full target,
+ * greedy ~= half of it) — a smarter bot sitting on a weaker baseline than the
+ * dumb bot it's supposed to beat was the actual balance bug.
+ *
+ * A single flat fraction can't simultaneously satisfy day-10 ($4-6k, needs
+ * aggressive early compounding from a $1,000 start) and day-90 ($200-400k,
+ * would wildly overshoot if that SAME aggressive fraction kept compounding
+ * for 90 days rather than 10 — confirmed empirically against the T028
+ * harness: any flat fraction high enough to clear day-10's floor pushed
+ * day-90 past its $400k ceiling by 25-70%). Splitting into an EARLY
+ * (`BASELINE_SPEND_FRACTION_EARLY`, first `BASELINE_WARMUP_DAYS`) and LATE
+ * (`BASELINE_SPEND_FRACTION_LATE`, thereafter) fraction — mirroring the same
+ * "decelerate growth after an early phase" shape `CONFIG.cargo.
+ * startingCapacity` already uses for greedy/random (see config.ts's own
+ * T029 comment) — lets day-10 compound fast while day-90 spends its (much
+ * more numerous) later cycles at a calmer, non-explosive rate.
+ */
+const BASELINE_SPEND_FRACTION_EARLY = 0.55
+const BASELINE_SPEND_FRACTION_LATE = 0.28
+const BASELINE_WARMUP_DAYS = 12
+
+function baselineSpendFraction(day: number): number {
+  return day <= BASELINE_WARMUP_DAYS ? BASELINE_SPEND_FRACTION_EARLY : BASELINE_SPEND_FRACTION_LATE
+}
 
 /** Cash reserve kept untouched by `maybeRepayLoan` — below this, no repayment
  * is attempted even if a loan is active. */
@@ -160,6 +194,13 @@ const REPAYMENT_FRACTION = 0.5
 /** A remembered price elsewhere must beat the current city's live price by
  * more than this multiple before the bot bothers traveling for it. */
 const TRAVEL_MARGIN_THRESHOLD = 1.1
+
+/**
+ * T029 ADDITION — see `maybeBuyLicense` below. A license is only purchased
+ * once cash is at least this multiple of the fee, so buying one never eats
+ * into the cash the bot needs for its next trade.
+ */
+const LICENSE_AFFORDABILITY_MULTIPLE = 4
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -194,6 +235,7 @@ function newsBotStepInner(state: GameState, rng: Rng): GameState {
   }
 
   let working = checkGoodUnlocks(checkCityUnlocks(state))
+  working = maybeBuyLicense(working)
 
   const { state: afterPaper, stories } = generateDailyPaper(working, rng)
   working = afterPaper
@@ -460,11 +502,53 @@ function buyCheapestAvailable(state: GameState, excludeGoodIds: Set<GoodId>): Ga
   const freeCapacity = state.cargoCapacity - cargoUsed(state)
   if (freeCapacity <= 0) return state
 
-  const desiredSpend = state.cash * BASELINE_SPEND_FRACTION
+  const desiredSpend = state.cash * baselineSpendFraction(state.day)
   const qty = Math.min(freeCapacity, Math.floor(desiredSpend / best.price))
   if (qty <= 0) return state
 
   return buy(state, best.goodId, qty, best.price)
+}
+
+// ---------------------------------------------------------------------------
+// Opportunistic license purchase
+// ---------------------------------------------------------------------------
+
+/**
+ * T029 ADDITION — root-cause fix for a second balance bug found alongside
+ * the baseline-spend-fraction one above. Before this existed, `newsBotStep`
+ * never called `buyLicense` (unlocks.ts) at all, so it could only ever trade
+ * the 3 free starter goods (Grain/Cotton/Iron) for an entire 90-day run —
+ * confirmed via trace: 6 of the 9 v1 goods (and therefore most of the §7
+ * event table's affected-goods, e.g. Silk/Spices/Steel/Fuel-scoped events)
+ * could NEVER produce an actionable `RumorSignal` no matter how good the news
+ * was, since `isGoodTradeable` (this file) rejects any good without a
+ * purchased license. A "news-follower" bot that structurally can't act on
+ * most of the news it reads isn't using its information edge at all.
+ *
+ * Buys the CHEAPEST licensable good (by fee) that is (a) already unlocked
+ * (`state.unlockedGoodIds`, via T010's `checkGoodUnlocks`), (b) not yet
+ * purchased, and (c) affordable with room to spare
+ * (`cash >= fee * LICENSE_AFFORDABILITY_MULTIPLE`) — at most ONE license per
+ * day, so a newly-affordable license never eats the cash the same day's
+ * trading needs. Cheapest-first means Salt/Textiles unlock early (day 5+,
+ * per §5), well before the pricier Spices/Fuel/Steel/Silk licenses become
+ * affordable, mirroring how a real player would naturally expand their
+ * tradeable-goods list as their bankroll grows. Exported for direct unit
+ * testing.
+ */
+export function maybeBuyLicense(state: GameState): GameState {
+  const candidates = GOODS.filter(
+    (good) =>
+      good.licenseFee !== null &&
+      state.unlockedGoodIds.includes(good.id) &&
+      !state.purchasedLicenseGoodIds.includes(good.id) &&
+      state.cash >= good.licenseFee * LICENSE_AFFORDABILITY_MULTIPLE,
+  ).sort((a, b) => (a.licenseFee as number) - (b.licenseFee as number))
+
+  const cheapest = candidates[0]
+  if (!cheapest) return state
+
+  return buyLicense(state, cheapest.id)
 }
 
 // ---------------------------------------------------------------------------
