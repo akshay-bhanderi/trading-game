@@ -239,9 +239,9 @@ export const PRICE_ENGINE = {
    * bands; that retuning plus a license-buying fix both live in newsBot.ts.
    */
   cityModifierRanges: {
-    producer: { min: 0.735, max: 0.835 },
+    producer: { min: 0.72, max: 0.835 },
     neutral: { min: 0.9, max: 1.1 },
-    consumer: { min: 1.12, max: 1.32 },
+    consumer: { min: 1.12, max: 1.34 },
   },
 
   /** §6: mean reversion — "if price > 2.2x or < 0.45x base×cityMod, pull
