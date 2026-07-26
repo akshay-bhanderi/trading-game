@@ -91,6 +91,15 @@ describe('travel + advanceTravelDay', () => {
     expect(started.priceStates).toBe(state.priceStates)
 
     // --- Advance day 1 of 2: not arrived yet ---
+    // NOTE (T015): advanceTravelDay now funnels through turnLoop.ts's
+    // advanceDay, which recomputes EVERY city+good price for the new day
+    // (a much richer priceStates object than the 2-entry fixture above) —
+    // so `priceStates` is no longer the same reference and no longer only
+    // has the 2 fixture entries. What matters, and what T015's "never leak
+    // live remote prices" invariant requires, is that the ORIGIN's
+    // lastSeenPrice/lastSeenDay stay frozen at their pre-trip values for
+    // the entire duration of travel (the player isn't physically there to
+    // observe a fresh price while traveling, even before arrival).
     const afterDay1 = advanceTravelDay(started)
 
     expect(afterDay1).not.toBe(started)
@@ -101,10 +110,14 @@ describe('travel + advanceTravelDay', () => {
       daysRemaining: 1,
       totalDays: 2,
     })
-    // Origin's price is still exactly what it was last seen at — frozen.
+    // Origin's price is still exactly what it was last seen at — frozen,
+    // even mid-travel (travelInProgress !== null blocks the refresh
+    // regardless of what currentCity currently says — see turnLoop.ts).
     expect(afterDay1.priceStates[ORIGIN]?.grain?.lastSeenPrice).toBe(10)
     expect(afterDay1.priceStates[ORIGIN]?.grain?.lastSeenDay).toBe(1)
-    expect(afterDay1.priceStates).toBe(started.priceStates)
+    // Destination is also untouched — the player isn't there yet either.
+    expect(afterDay1.priceStates[DESTINATION]?.grain?.lastSeenPrice).toBe(12)
+    expect(afterDay1.priceStates[DESTINATION]?.grain?.lastSeenDay).toBe(1)
 
     // --- Advance day 2 of 2: arrival ---
     const afterDay2 = advanceTravelDay(afterDay1)
@@ -113,11 +126,15 @@ describe('travel + advanceTravelDay', () => {
     expect(afterDay2.day).toBe(3)
     expect(afterDay2.currentCity).toBe(DESTINATION) // arrived
     expect(afterDay2.travelInProgress).toBeNull()
-    // Still no price mutation performed by these functions — that's the
-    // turn loop's (T015/T008's) job, out of scope here.
-    expect(afterDay2.priceStates).toBe(afterDay1.priceStates)
+    // Origin remains frozen forever after being left behind — the player
+    // is no longer standing there, so it never refreshes again either.
     expect(afterDay2.priceStates[ORIGIN]?.grain?.lastSeenPrice).toBe(10)
-    expect(afterDay2.priceStates[DESTINATION]?.grain?.lastSeenPrice).toBe(12)
+    expect(afterDay2.priceStates[ORIGIN]?.grain?.lastSeenDay).toBe(1)
+    // Destination, however, IS freshened the moment the player arrives:
+    // lastSeenPrice/lastSeenDay now match the live day-3 computed price.
+    const destinationGrainState = afterDay2.priceStates[DESTINATION]?.grain
+    expect(destinationGrainState?.lastSeenDay).toBe(3)
+    expect(destinationGrainState?.lastSeenPrice).toBe(destinationGrainState?.currentPrice)
   })
 
   it('rejects starting a new trip while one is already in progress, with no mutation', () => {

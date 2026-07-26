@@ -60,29 +60,45 @@
  * is already `null` (nothing to advance).
  *
  * ---------------------------------------------------------------------------
- * DESIGN: day advancement
+ * DESIGN: day advancement — UPDATED BY T015, now funnels through `advanceDay`
  * ---------------------------------------------------------------------------
- * `advanceTravelDay()` increments `state.day` by 1 itself, matching the
- * precedent set by `stay()` (T014), which also advances `day` on its own.
- * This keeps `travel`'s per-day cadence consistent with `stay`'s: both
- * "spend a day" functions own their own day-increment rather than leaving
- * it to a not-yet-built turn loop. (T015, when built, is expected to call
- * `advanceTravelDay` — which already bumps `day` — rather than bumping `day`
- * a second time itself.)
+ * Originally (T013) `advanceTravelDay()` incremented `state.day` by 1
+ * itself, matching the precedent `stay()` (T014) also used at the time.
+ * T015 (/src/engine/turnLoop.ts) introduced `advanceDay(state)` as the single
+ * function responsible for ALL day-advancement side effects (day increment +
+ * price recompute + net-worth tracking). `advanceTravelDay()` now performs
+ * its own travel-specific state transition FIRST (decrementing
+ * `daysRemaining`, and on arrival flipping `currentCity` to the destination +
+ * clearing `travelInProgress` back to `null`), and then delegates the actual
+ * day-advance to `advanceDay` on that already-transitioned state, instead of
+ * bumping `day` a second/separate time itself. This guarantees a multi-day
+ * trip's price recompute/net-worth tracking actually happens on every
+ * transit day, not just on arrival (previously, before T015 existed, nothing
+ * else was wired up to do this).
+ *
+ * Ordering matters here: because `currentCity`/`travelInProgress` are
+ * updated BEFORE `advanceDay` runs, `advanceDay`'s "refresh the present
+ * city's lastSeenPrice" logic sees the POST-transition values — i.e. on a
+ * transit day it still sees `travelInProgress !== null` (no refresh anywhere,
+ * origin correctly stays frozen), and on the arrival day it sees
+ * `travelInProgress === null` and `currentCity` already equal to the
+ * destination (so the destination's prices freshen immediately on arrival).
+ * See turnLoop.ts's file header for the full rationale on why the refresh is
+ * gated on `travelInProgress === null` rather than just "is this
+ * `currentCity`".
  *
  * ---------------------------------------------------------------------------
  * DESIGN: price staleness (§6)
  * ---------------------------------------------------------------------------
  * Neither `travel()` nor `advanceTravelDay()` reads or writes
- * `state.priceStates` at all. Price recomputation (which is what would make
- * the destination's price "fresh" on arrival) is the Turn Loop's job (T015),
- * driven by T008's `computePrice`. Per T008's own design, `computePrice`
- * only ever REFRESHES `lastSeenPrice`/`lastSeenDay` for the city the player
- * is physically standing in when it's called — cities left behind simply
- * stop receiving that refresh. Staleness is therefore already structurally
- * guaranteed by the surrounding system; this file's job is narrower and
- * verified by its own tests: prove that `travel`/`advanceTravelDay`
- * themselves never mutate any `priceStates` entry, directly or indirectly.
+ * `state.priceStates` directly themselves — that remains `advanceDay`'s
+ * (T015's) job, driven by T008's `computePrice`. `advanceDay` only ever
+ * REFRESHES `lastSeenPrice`/`lastSeenDay` for the city the player is
+ * PRESENTLY standing in (`currentCity`, and only when not mid-travel) when
+ * it's called — cities left behind simply stop receiving that refresh.
+ * Staleness is therefore guaranteed by the surrounding system; this file's
+ * own job is narrower: perform the correct `currentCity`/`travelInProgress`
+ * transition, in the correct order, before handing off to `advanceDay`.
  *
  * ---------------------------------------------------------------------------
  * NOTE FOR OTHER CODE: trading-while-traveling
@@ -98,6 +114,7 @@ import { CITIES } from '../data/cities'
 import type { GameState } from '../types'
 import { calcFare, getTravelDays } from '../travel'
 import { cargoUsed } from '../cargo'
+import { advanceDay } from '../turnLoop'
 
 /**
  * Starts a trip from `state.currentCity` to `destinationCityId`.
@@ -152,18 +169,17 @@ export function travel(state: GameState, destinationCityId: string): GameState {
 
 /**
  * Advances an in-progress trip (`state.travelInProgress`) by exactly one
- * day. Intended to be called once per day-tick by the turn loop (T015)
- * while a trip is underway — see the file-header design note for why this
- * is a separate function from `travel()`.
+ * day. Called once per day-tick while a trip is underway — see the
+ * file-header design note for why this is a separate function from
+ * `travel()`.
  *
- * Decrements `daysRemaining` by 1 and increments `state.day` by 1 (matching
- * `stay()`'s precedent of owning its own day-advancement). When
- * `daysRemaining` reaches 0, also sets `state.currentCity` to the
- * destination and clears `state.travelInProgress` back to `null` — this is
- * the moment of arrival.
- *
- * Never touches `state.priceStates` — see the file-header design note on
- * price staleness (§6); that is the turn loop's job, driven by T008.
+ * Decrements `daysRemaining` by 1. When `daysRemaining` reaches 0, also sets
+ * `state.currentCity` to the destination and clears `state.travelInProgress`
+ * back to `null` — this is the moment of arrival. Either way, the resulting
+ * state is then passed to `advanceDay` (T015), which owns the actual
+ * day-increment, the day's full city+good price recompute, and net-worth
+ * tracking — see the "UPDATED BY T015" file-header section above for why
+ * this file no longer bumps `day`/touches `priceStates` inline itself.
  *
  * Rejected (returns the identical `state` reference, unchanged) when there
  * is no trip in progress (`state.travelInProgress === null`).
@@ -178,21 +194,23 @@ export function advanceTravelDay(state: GameState): GameState {
   const daysRemaining = trip.daysRemaining - 1
 
   if (daysRemaining <= 0) {
-    // Arrival.
-    return {
+    // Arrival — transition currentCity/travelInProgress FIRST, then hand off
+    // to advanceDay (T015) so its "present city" price refresh sees the
+    // destination as already arrived-at (see file header ordering note).
+    const arrived: GameState = {
       ...state,
-      day: state.day + 1,
       currentCity: trip.destinationCityId,
       travelInProgress: null,
     }
+    return advanceDay(arrived)
   }
 
-  return {
+  const stillTraveling: GameState = {
     ...state,
-    day: state.day + 1,
     travelInProgress: {
       ...trip,
       daysRemaining,
     },
   }
+  return advanceDay(stillTraveling)
 }

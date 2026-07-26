@@ -78,7 +78,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `calcNetWorth(state)` returns cash + deposits + (owned goods valued at each city's last-known price) − debt. A `updatePeakNetWorth(state)` helper updates `state.peakNetWorth = max(current, netWorth)`; documented as intended to be called once per day-tick (wired in T015). Unit tests cover: pure cash-only case, case with stale/last-known good prices, case with outstanding debt exceeding assets (negative net worth allowed).
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T010 — City and commodity unlock logic (incl. license purchase)**
+- [x] **T010 — City and commodity unlock logic (incl. license purchase)**
   - Doc references: §4, §5
   - Dependencies: T009, T005, T006
   - File path hints: `/src/engine/unlocks.ts`
@@ -113,7 +113,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `stay(state)` deducts the current city's nightly rate from cash, advances the day by 1. Rejects if cash insufficient. Unit test covers a stay in a specific city matching its documented nightly rate exactly.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T015 — Turn loop / day-advance engine tying trade/travel/stay together**
+- [x] **T015 — Turn loop / day-advance engine tying trade/travel/stay together**
   - Doc references: §2 (core loop), §17 (build step 3)
   - Dependencies: T012, T013, T014, T008, T009
   - File path hints: `/src/engine/turnLoop.ts`

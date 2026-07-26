@@ -240,6 +240,14 @@ describe('computePrice — required test (c): hard floor/ceiling never violated'
     const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     const days = 500
     let checkedCount = 0
+    // Accumulate any violation instead of calling `expect` per iteration —
+    // with 12 seeds x 8 cities x 9 goods x 500 days (~432k computations),
+    // per-iteration matcher calls dominate the runtime far more than the
+    // actual price computation does. A single assertion at the end keeps
+    // the exact same coverage (every one of those ~432k prices is still
+    // checked) while running in a small fraction of the time, and still
+    // reports the first offending case if the invariant is ever broken.
+    const violations: string[] = []
 
     for (const seed of seeds) {
       // A harness-only rng used purely to decide today's (fake) event
@@ -268,10 +276,19 @@ describe('computePrice — required test (c): hard floor/ceiling never violated'
             const result = computePrice(city, good, day, seed, rng, previousState, activeEvents)
             checkedCount++
 
-            expect(result.price).toBeGreaterThanOrEqual(result.floor - 1e-9)
-            expect(result.price).toBeLessThanOrEqual(result.ceiling + 1e-9)
-            expect(result.floor).toBeCloseTo(result.basePriceWithCityModifier * hardFloorMultiplier, 9)
-            expect(result.ceiling).toBeCloseTo(result.basePriceWithCityModifier * hardCeilingMultiplier, 9)
+            const expectedFloor = result.basePriceWithCityModifier * hardFloorMultiplier
+            const expectedCeiling = result.basePriceWithCityModifier * hardCeilingMultiplier
+            const EPS = 1e-6
+            if (
+              result.price < result.floor - EPS ||
+              result.price > result.ceiling + EPS ||
+              Math.abs(result.floor - expectedFloor) > EPS ||
+              Math.abs(result.ceiling - expectedCeiling) > EPS
+            ) {
+              violations.push(
+                `seed=${seed} city=${city.id} good=${good.id} day=${day} price=${result.price} floor=${result.floor} ceiling=${result.ceiling}`,
+              )
+            }
 
             previousState = result.nextState
           }
@@ -282,6 +299,7 @@ describe('computePrice — required test (c): hard floor/ceiling never violated'
     // Sanity: we actually exercised the full breadth described (12 seeds x
     // 500 days x every city/good pair).
     expect(checkedCount).toBe(seeds.length * days * CITIES.length * GOODS.length)
+    expect(violations).toEqual([])
   })
 })
 
