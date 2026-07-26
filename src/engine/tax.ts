@@ -54,14 +54,23 @@
  * types.ts ("year 1 = days 1-90, year 2 = days 91-180...").
  *
  * ---------------------------------------------------------------------------
- * T031 forward reference — CA tiers not implemented yet
+ * T031 addition — CA tiers (rate/profit-cap/above-cap formula)
  * ---------------------------------------------------------------------------
- * §10 describes CA hiring (Junior/Senior/Elite) changing both the tax rate
- * and adding a profit-cap/above-cap split. T031 (not built yet) owns that.
- * For T030, tax is ALWAYS computed at the flat `CONFIG.tax.noCaRate` (30%)
- * regardless of any future CA state — `TaxRecord.caTierActive` is always
- * recorded as `'none'` here. T031 is expected to extend `runYearEnd` (or
- * wrap it) to look up an active CA tier and use its rate/cap instead.
+ * §10's CA tiers table (`CONFIG.tax.caTiers`, keyed by `CATier`) gives EVERY
+ * tier — including `'none'` (annualFee 0, taxRate 0.3, profitCap null,
+ * aboveCapTaxRate 0.3) — the same four fields, so `computeTaxOwed` below
+ * reads `state.hiredCATierThisFiscalYear ?? 'none'` and applies ONE unified
+ * formula for all four tiers rather than a special-cased flat-rate branch
+ * for `'none'` plus a separate tiered branch for a hired CA: `profitCap ===
+ * null` (true only for `'none'`) means no cap ever applies, so the formula
+ * degenerates to exactly the old flat `taxableBase * noCaRate` in that case
+ * — `CONFIG.tax.noCaRate` and `caTiers.none.taxRate` are kept numerically
+ * identical (0.3) by construction, not read from two different places.
+ * `hireCA` (ca.ts, T031) is the sole writer of
+ * `state.hiredCATierThisFiscalYear`; this file is the sole READER, and also
+ * the one that resets it back to `'none'` once used (§10: "hire for the
+ * year... effective that fiscal year" — a one-year contract, not a standing
+ * subscription — see ca.ts's own file header for the full rationale).
  *
  * ---------------------------------------------------------------------------
  * Deduction order: cash, then deposits (deterministic iteration order),
@@ -131,7 +140,22 @@
  */
 
 import { CONFIG } from './config'
-import type { BankAccount, CityId, GameState, TaxRecord } from './types'
+import type { BankAccount, CATier, CityId, GameState, TaxRecord } from './types'
+
+/**
+ * Applies the active CA tier's rate/profit-cap/above-cap formula to a
+ * (already floored-at-0) `taxableBase` — see file header for why one
+ * formula covers all four tiers, including `'none'`.
+ */
+function computeTaxOwed(taxableBase: number, tier: CATier): number {
+  const tierConfig = CONFIG.tax.caTiers[tier]
+
+  if (tierConfig.profitCap === null || taxableBase <= tierConfig.profitCap) {
+    return taxableBase * tierConfig.taxRate
+  }
+
+  return tierConfig.profitCap * tierConfig.taxRate + (taxableBase - tierConfig.profitCap) * tierConfig.aboveCapTaxRate
+}
 
 /**
  * Runs the year-end tax statement for the fiscal year that just elapsed.
@@ -143,10 +167,11 @@ import type { BankAccount, CityId, GameState, TaxRecord } from './types'
  *   1. Computes `taxableBase = max(0, realizedProfitThisFiscalYear +
  *      depositInterestThisFiscalYear)` (unrealized cargo gains excluded per
  *      §10 — this function never touches `state.cargo`/`priceStates`).
- *   2. Computes `taxOwed = taxableBase * CONFIG.tax.noCaRate` — UNLESS this
- *      is a Noob-difficulty game's first-ever year-end
- *      (`fiscalYear === 1`), in which case `taxOwed` is forced to `0` (§3
- *      waiver — see file header).
+ *   2. Computes `taxOwed` via `computeTaxOwed` using whichever CA tier was
+ *      hired for this fiscal year (`state.hiredCATierThisFiscalYear ??
+ *      'none'`, T031/ca.ts) — UNLESS this is a Noob-difficulty game's
+ *      first-ever year-end (`fiscalYear === 1`), in which case `taxOwed` is
+ *      forced to `0` (§3 waiver — see file header).
  *   3. Deducts `taxOwed` from `state.cash` first, then from
  *      `state.bankAccounts[*].depositBalance` (iteration order =
  *      `Object.keys(state.bankAccounts)`, see file header) until covered or
@@ -169,10 +194,12 @@ export function runYearEnd(state: GameState): GameState {
   const depositInterestEarned = state.depositInterestThisFiscalYear ?? 0
   const taxableBase = Math.max(0, realizedProfit + depositInterestEarned)
 
+  const caTierActive: CATier = state.hiredCATierThisFiscalYear ?? 'none'
+
   const isNoobFirstYearWaiver =
     state.difficulty === 'Noob' && fiscalYear === 1 && CONFIG.difficulty.Noob.firstTaxYearWaived
 
-  const taxOwed = isNoobFirstYearWaiver ? 0 : taxableBase * CONFIG.tax.noCaRate
+  const taxOwed = isNoobFirstYearWaiver ? 0 : computeTaxOwed(taxableBase, caTierActive)
 
   // Step 3a: deduct from cash first.
   let remaining = taxOwed
@@ -216,7 +243,7 @@ export function runYearEnd(state: GameState): GameState {
     realizedProfit,
     depositInterestEarned,
     taxPaid,
-    caTierActive: 'none', // T031 will extend this to reflect a hired CA tier.
+    caTierActive,
     forcedLoanTriggered,
   }
 
@@ -228,6 +255,10 @@ export function runYearEnd(state: GameState): GameState {
     taxHistory: [...state.taxHistory, record],
     realizedProfitThisFiscalYear: 0,
     depositInterestThisFiscalYear: 0,
+    // T031: the CA engagement was for THIS fiscal year only (§10 "effective
+    // that fiscal year") — reset so next year defaults back to no-CA unless
+    // `hireCA` (ca.ts) is called again before the next year-end.
+    hiredCATierThisFiscalYear: 'none',
   }
 }
 

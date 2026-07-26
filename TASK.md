@@ -241,7 +241,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `runYearEnd(state)` triggers on days 90/180/270… computing taxable base = FIFO realized profit for the elapsed year + deposit interest earned, taxed at 30% absent a CA (unrealized cargo gains excluded). If cash+deposits can't cover the tax bill, the shortfall becomes a forced Huge-bank-rate loan (note: v1 has no Huge bank city reachable — implement generically using the Huge rate constant from config regardless, per §13's instruction that CA/tax "still apply in full"). Unit tests cover a profitable year's tax deduction and a shortfall producing the forced loan.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T031 — CA hiring system (Junior/Senior/Elite tiers)**
+- [x] **T031 — CA hiring system (Junior/Senior/Elite tiers)**
   - Doc references: §10 (CA tiers table)
   - Dependencies: T030, T005
   - File path hints: `/src/engine/ca.ts`
@@ -252,14 +252,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 6 — Persistence
 
-- [ ] **T032 — localStorage save/load with schema versioning**
+- [x] **T032 — localStorage save/load with schema versioning**
   - Doc references: §17 (localStorage persistence, schema version), §1 (Save)
   - Dependencies: T031
   - File path hints: `/src/engine/persistence/saveLoad.ts`
   - Acceptance criteria: `saveGame(state)` serializes full `GameState` (including RNG seed) to a single localStorage key with an embedded `schemaVersion` number; `loadGame()` deserializes and, if the stored version is older than current, runs a migration function (a no-op passthrough stub is acceptable for v1 as long as the mechanism exists and is documented). Round-trip test: save then load produces a deep-equal state.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T033 — Local high-score table (top 10 runs)**
+- [x] **T033 — Local high-score table (top 10 runs)**
   - Doc references: §1 (local high-score table)
   - Dependencies: T032
   - File path hints: `/src/engine/persistence/highScore.ts`

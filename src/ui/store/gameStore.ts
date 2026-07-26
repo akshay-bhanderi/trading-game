@@ -1,17 +1,15 @@
 /**
- * Zustand game store — thin adapter wiring UI actions into /src/engine.
+ * Zustand game store (T034) — thin adapter wiring UI actions into
+ * /src/engine. No game logic lives here: every action just calls an engine
+ * function and writes back whatever GameState it returns, funneled through
+ * `persist`/`refreshUnlocks` first (see those functions' own doc comments).
+ * Covers trade, travel, stay, deposit/withdraw, loan take/repay, default
+ * resolution, CA hiring, and save/load — the full T034 action surface.
  *
- * No game logic lives here: every action just calls an engine function and
- * writes back whatever GameState it returns. This is a minimal playable
- * slice (fast-tracked ahead of the full T034 store per user request) — it
- * only wires the actions the current MVP screens need (new game, buy/sell,
- * travel, stay, save/continue). Deposits/loans/CA/tax dispatch are left for
- * a later pass.
- *
- * Save/load (fast-tracked ahead of the full T032 persistence task, same
- * spirit as the rest of this file): every mutating action runs its result
- * through `persist()` before `set()`, so the current run auto-saves to
- * localStorage after every buy/sell/travel/stay — reloading the page never
+ * Save/load (fast-tracked ahead of the full T032 persistence task before
+ * T032 itself was built — both are done now): every mutating action runs
+ * its result through `persist()` before `set()`, so the current run
+ * auto-saves to localStorage after every action — reloading the page never
  * loses more than the single in-flight action. `save()` is an ADDITIONAL
  * manual trigger purely for player-visible reassurance (flips `justSaved`
  * for 2s so the HUD can show a brief confirmation); it doesn't do anything
@@ -26,7 +24,11 @@ import { travel as engineTravel, advanceTravelDay } from '../../engine/actions/t
 import { stay as engineStay } from '../../engine/actions/stay'
 import { checkCityUnlocks, checkGoodUnlocks } from '../../engine/unlocks'
 import { hasSavedGame, loadGame, saveGame } from '../../engine/persistence/saveLoad'
-import type { CityId, Difficulty, GameState, GoodId } from '../../engine/types'
+import { deposit as engineDeposit, withdraw as engineWithdraw } from '../../engine/bank/deposits'
+import { takeLoan as engineTakeLoan, repayLoan as engineRepayLoan } from '../../engine/bank/loans'
+import { resolveDefault as engineResolveDefault } from '../../engine/bank/default'
+import { hireCA as engineHireCA } from '../../engine/ca'
+import type { CATier, CityId, Difficulty, GameState, GoodId } from '../../engine/types'
 
 interface GameStoreState {
   game: GameState | null
@@ -39,6 +41,12 @@ interface GameStoreState {
   sell: (goodId: GoodId, qty: number) => void
   travelTo: (cityId: CityId) => void
   stay: () => void
+  deposit: (cityId: CityId, amount: number) => void
+  withdraw: (cityId: CityId, amount: number) => void
+  takeLoan: (cityId: CityId, amount: number) => void
+  repayLoan: (cityId: CityId, amount: number) => void
+  resolveDefault: (choice: 'surrender' | 'restructure' | 'bankruptcy') => void
+  hireCA: (tier: Exclude<CATier, 'none'>) => void
   /** Explicit manual save, for the HUD's Save button. Auto-save (see
    * `persist` below) already covers every mutating action, so this exists
    * purely to give the player an on-demand confirmation that their progress

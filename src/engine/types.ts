@@ -557,4 +557,17 @@ export interface GameState {
      * a later top-up from a second shortfall does not reset this). */
     startDay: number
   } | null
+
+  /**
+   * T031 addition — the CA tier hired for the CURRENT fiscal year, per §10:
+   * "hire for the year, fee due on hiring, effective that fiscal year." Set
+   * by `hireCA` (ca.ts); read by `runYearEnd` (tax.ts) to pick that year's
+   * tax-rate/profit-cap formula, then reset back to `'none'` by
+   * `runYearEnd` once that year's tax is computed — the engagement is a
+   * one-year contract, not an auto-renewing subscription, so the player
+   * must re-hire (and re-pay the annual fee) every fiscal year they want a
+   * CA active. `undefined` is equivalent to `'none'` (no CA hired this
+   * year yet).
+   */
+  hiredCATierThisFiscalYear?: CATier
 }
