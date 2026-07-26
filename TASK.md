@@ -25,14 +25,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: Types/interfaces exist for `City`, `Good`, `CityGoodModifier`, `PriceState`, `Event`, `NewspaperStory`, `Cargo`, `BankAccount` (loan+deposit), `TaxRecord`, `Rank` inputs, `GameState` (day, currentCity, cash, cargo, deposits/loans map, owned goods with cost basis, unlocked cities/goods, peakNetWorth, seed, difficulty, repaymentRecord, rank cache). File compiles with `strict: true`, zero `any`. A short comment block notes these types will be extended in Phase 2 (warehouse/hotel/aviation fields added later, not now).
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T003 — config.ts skeleton with all ⚙ tunable constants**
+- [x] **T003 — config.ts skeleton with all ⚙ tunable constants**
   - Doc references: §3, §4, §5, §6, §7, §9, §10 (Phase 2 sections §14–§16 get placeholder stubs only, filled in later tasks)
   - Dependencies: T002
   - File path hints: `/src/engine/config.ts`
   - Acceptance criteria: A single exported `CONFIG` object (or several named exports re-exported from one barrel file) contains every ⚙-marked number from §3–§10 (difficulty multipliers, cargo upgrade costs, mean-reversion pull %, floor/ceiling multipliers, wire/gossip accuracy, insider pricing formula constants, rank weights, loan baseCaps/rankFactor/interest rates, deposit interest rates, default thresholds, tax year length, CA tiers). Values match the doc's tables exactly. Empty/commented placeholder sections exist for Warehouse/Hotel/Aviation constants (to be populated in T046/T053/T059) so the file's structure doesn't need reshaping later. No magic numbers for these systems exist anywhere else in the codebase (this is the acceptance bar to enforce going forward).
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T004 — Seeded RNG utility with unit tests**
+- [x] **T004 — Seeded RNG utility with unit tests**
   - Doc references: §6 ("Deterministic seeded RNG per run")
   - Dependencies: T002
   - File path hints: `/src/engine/rng.ts`, `/src/engine/rng.test.ts`
