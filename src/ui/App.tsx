@@ -12,17 +12,21 @@ function App() {
   const game = useGameStore((s) => s.game)
   const [screen, setScreen] = useState<Screen>('city')
 
+  const activeScreen = !game ? 'title' : screen
+
   return (
     <div className="app-frame">
-      {!game ? (
-        <TitleScreen />
-      ) : screen === 'market' ? (
-        <MarketScreen navigate={setScreen} />
-      ) : screen === 'travel' ? (
-        <TravelScreen navigate={setScreen} />
-      ) : (
-        <CityScreen navigate={setScreen} />
-      )}
+      <div className="screen-transition" key={activeScreen}>
+        {!game ? (
+          <TitleScreen />
+        ) : screen === 'market' ? (
+          <MarketScreen navigate={setScreen} />
+        ) : screen === 'travel' ? (
+          <TravelScreen navigate={setScreen} />
+        ) : (
+          <CityScreen navigate={setScreen} />
+        )}
+      </div>
     </div>
   )
 }

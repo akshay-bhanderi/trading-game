@@ -1,6 +1,7 @@
 import { useGameStore } from '../store/gameStore'
 import { cargoUsed } from '../../engine/cargo'
 import { GOODS } from '../../engine/data/goods'
+import { CoinIcon } from '../components/PixelIcons'
 import type { Screen } from '../App'
 
 export default function MarketScreen({ navigate }: { navigate: (screen: Screen) => void }) {
@@ -35,7 +36,10 @@ export default function MarketScreen({ navigate }: { navigate: (screen: Screen) 
           <div className="card" key={good.id}>
             <div className="row">
               <strong>{good.name}</strong>
-              <span>{price !== undefined ? `$${price.toFixed(2)}` : '—'}</span>
+              <span className="icon-label">
+                <CoinIcon size={12} />
+                {price !== undefined ? `$${price.toFixed(2)}` : '—'}
+              </span>
             </div>
             <div className="row muted">
               <span>Owned: {holding?.qty ?? 0}</span>
