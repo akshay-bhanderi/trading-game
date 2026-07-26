@@ -124,7 +124,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 2 — Events & Newspaper Engine
 
-- [ ] **T016 — Base event table data + scheduling engine**
+- [x] **T016 — Base event table data + scheduling engine**
   - Doc references: §7 (event types table; pipeline steps 1–2)
   - Dependencies: T015, T004, T005, T006
   - File path hints: `/src/engine/events/eventTable.ts`, `/src/engine/events/eventEngine.ts`

@@ -217,6 +217,24 @@ export const EVENTS = {
     regionOnlyBelowNetWorth: 500_000,
   },
 
+  /**
+   * §7 step 3/T016: probability that a newly SCHEDULED event will actually
+   * fire on its `scheduledFireDay` (vs. turn out to be a deliberate false
+   * rumor that fizzles) — this is the hidden-truth draw made the moment
+   * `scheduleEvent` (eventEngine.ts) creates the event record.
+   *
+   * This is NOT the same thing as `wireAccuracy`/`gossipAccuracy` above —
+   * those describe how reliably the newspaper's chosen SOURCE STYLE reports
+   * whatever this hidden flag already says (a later, T018 newspaper-
+   * generation concern). §7 doesn't give an exact number for THIS
+   * scheduling-time draw, so this is a documented assumption: most
+   * scheduled events are real, with false rumors as the minority "spice"
+   * among a paper's 2-4 stories per §7's framing of "deliberate false
+   * rumors" as one ingredient among several. A candidate for T029's balance
+   * pass to tune.
+   */
+  eventFireProbability: 0.6,
+
   /** §7 "Insider information" — Informant tips. */
   insider: {
     /** Base tip accuracy (adjusted further by difficulty's
