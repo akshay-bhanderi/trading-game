@@ -122,6 +122,42 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     set({ game: persist(refreshUnlocks(engineStay(game))) })
   },
 
+  deposit: (cityId, amount) => {
+    const { game } = get()
+    if (!game) return
+    set({ game: persist(refreshUnlocks(engineDeposit(game, cityId, amount))) })
+  },
+
+  withdraw: (cityId, amount) => {
+    const { game } = get()
+    if (!game) return
+    set({ game: persist(refreshUnlocks(engineWithdraw(game, cityId, amount))) })
+  },
+
+  takeLoan: (cityId, amount) => {
+    const { game } = get()
+    if (!game) return
+    set({ game: persist(refreshUnlocks(engineTakeLoan(game, cityId, amount))) })
+  },
+
+  repayLoan: (cityId, amount) => {
+    const { game } = get()
+    if (!game) return
+    set({ game: persist(refreshUnlocks(engineRepayLoan(game, cityId, amount))) })
+  },
+
+  resolveDefault: (choice) => {
+    const { game } = get()
+    if (!game) return
+    set({ game: persist(refreshUnlocks(engineResolveDefault(game, choice))) })
+  },
+
+  hireCA: (tier) => {
+    const { game } = get()
+    if (!game) return
+    set({ game: persist(refreshUnlocks(engineHireCA(game, tier))) })
+  },
+
   save: () => {
     const { game } = get()
     if (!game) return

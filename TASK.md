@@ -270,7 +270,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 7 — App Shell & State Wiring
 
-- [ ] **T034 — Zustand (or reducer) store wiring engine to React**
+- [x] **T034 — Zustand (or reducer) store wiring engine to React**
   - Doc references: §17 (state management)
   - Dependencies: T015, T018, T024, T030, T031, T032, T033
   - File path hints: `/src/ui/store/gameStore.ts`
