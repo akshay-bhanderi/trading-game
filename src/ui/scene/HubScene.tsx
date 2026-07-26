@@ -70,6 +70,44 @@ export default function HubScene({ cityId }: HubSceneProps) {
         wallRef.current = wall
         floorRef.current = floor
 
+        // Single-floor building cutaway dressing (T037 follow-up — the flat
+        // wall/floor fills above read as an empty color field with nothing
+        // to mark it as "inside a one-floor building"; this layer adds a
+        // roofline/ceiling beam, a window, corner support posts, and floor
+        // planking so the room reads as an actual cutaway room, not a color
+        // swatch). Deliberately city-palette-INDEPENDENT (fixed wood/timber
+        // tones) so it never needs to be touched by the city re-tint effect
+        // above — only `wall`/`floor`'s own fill colors change on travel.
+        const structure = new Graphics()
+
+        // Ceiling beam / roofline strip along the very top of the wall.
+        structure.rect(0, 0, STAGE_WIDTH, 14).fill(0x2b1c10)
+
+        // Corner support posts (simple half-timber framing cue).
+        const postWidth = 14
+        structure.rect(10, 14, postWidth, FLOOR_Y - 14).fill(0x3f2a17)
+        structure.rect(STAGE_WIDTH - 10 - postWidth, 14, postWidth, FLOOR_Y - 14).fill(0x3f2a17)
+
+        // A single window, right of the sign (decorative — lets daylight
+        // read against the wall so the room doesn't feel like a flat void).
+        const windowX = STAGE_WIDTH - 90
+        const windowY = 260
+        const windowSize = 64
+        structure.rect(windowX - 4, windowY - 4, windowSize + 8, windowSize + 8).fill(0x2b1c10)
+        structure.rect(windowX, windowY, windowSize, windowSize).fill(0xbcd8e8)
+        structure.rect(windowX + windowSize / 2 - 2, windowY, 4, windowSize).fill(0x2b1c10)
+        structure.rect(windowX, windowY + windowSize / 2 - 2, windowSize, 4).fill(0x2b1c10)
+
+        // Baseboard trim marking the wall/floor seam.
+        structure.rect(0, FLOOR_Y - 6, STAGE_WIDTH, 6).fill(0x1a0f08)
+
+        // Floor plank lines.
+        for (let plankY = FLOOR_Y + 22; plankY < STAGE_HEIGHT; plankY += 22) {
+          structure.rect(0, plankY, STAGE_WIDTH, 2).fill(0x6e4526)
+        }
+
+        root.addChild(structure)
+
         // Room 1 brand signage (§12: "Room 1 displays the game's own
         // business name as in-scene signage/decor"). Sits BELOW the HUD's
         // top-left/top-right chips (city/day, cash/cargo — Hud.tsx, absolute
