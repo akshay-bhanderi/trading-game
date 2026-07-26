@@ -289,7 +289,7 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 8 — UI Screens (1–8)
 
-- [ ] **T036 — Screen 1: Title / difficulty select / continue**
+- [x] **T036 — Screen 1: Title / difficulty select / continue**
   - Doc references: §12 (screen 1), §3
   - Dependencies: T035, T032
   - File path hints: `/src/ui/screens/TitleScreen.tsx`
