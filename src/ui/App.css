@@ -399,6 +399,150 @@ button.secondary {
   outline-offset: -6px;
 }
 
+/* ---------------------------------------------------------------------
+   Market: simple tap-to-trade list + drill-down trade panel
+   --------------------------------------------------------------------- */
+
+.market-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.market-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  background: var(--paper);
+  min-height: 48px;
+}
+
+.market-row-name {
+  font-family: var(--font-body);
+  font-size: 17px;
+}
+
+.market-row-owned {
+  font-size: 13px;
+}
+
+.market-row-prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.market-buy-price {
+  color: var(--accent-dark);
+  font-weight: bold;
+}
+
+.market-sell-profit {
+  color: var(--good);
+  font-weight: bold;
+}
+
+.market-sell-loss {
+  color: var(--bad);
+  font-weight: bold;
+}
+
+.market-sell-neutral {
+  color: #6b6252;
+}
+
+.trade-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trade-panel-back {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 10px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.trade-panel-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.trade-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.trade-tab--active {
+  background: var(--accent);
+}
+
+.trade-tab--active.trade-tab--sell {
+  background: var(--good);
+  color: var(--paper);
+}
+
+.trade-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trade-qty-btn {
+  min-height: 44px;
+  min-width: 44px;
+  width: 44px;
+  padding: 0;
+  font-size: 16px;
+}
+
+.trade-qty-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 20px;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.trade-qty-slider {
+  width: 100%;
+  height: 32px;
+  accent-color: var(--accent-dark);
+}
+
+.trade-total {
+  font-family: var(--font-body);
+  font-size: 18px;
+}
+
+.trade-confirm {
+  min-height: 48px;
+  font-size: 13px;
+}
+
+.trade-confirm--sell {
+  background: var(--good);
+}
+
+.trade-confirm--sell:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
 .row {
   display: flex;
   align-items: center;
