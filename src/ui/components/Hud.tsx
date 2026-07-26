@@ -14,7 +14,7 @@ import {
   LedgerIcon,
 } from './PixelIcons'
 
-export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | null
+export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | 'aviation' | null
 
 interface HudProps {
   cityName: string
@@ -74,6 +74,9 @@ export default function Hud({
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('market')} aria-label="Market">
           <CoinIcon size={20} />
+        </button>
+        <button className="hud-icon-btn" onClick={() => onOpen('aviation')} aria-label="Aviation">
+          <span className="hud-icon-glyph">✈️</span>
         </button>
         <button className="hud-icon-btn" onClick={onSave} aria-label="Save game">
           <span className="hud-icon-glyph">💾</span>

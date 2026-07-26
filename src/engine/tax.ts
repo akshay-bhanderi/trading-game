@@ -137,6 +137,36 @@
  * consistency, and still resets the fiscal-year accumulators — the waiver
  * only forgives the BILL, not the bookkeeping. Every later year-end
  * (`fiscalYear >= 2`), even on Noob, taxes normally.
+ *
+ * ---------------------------------------------------------------------------
+ * T064 addition (§16 Aviation) — plane maintenance billed ALONGSIDE tax,
+ * from the SAME combined cash-then-deposits-then-forced-loan pool
+ * ---------------------------------------------------------------------------
+ * §16: "every owned plane...owes maintenance/insurance of 0.3%/month of
+ * purchase price, billed at year-end alongside tax". `aviation.ts`'s
+ * `accruePlaneMaintenanceForDay` accrues one day's maintenance (across every
+ * owned plane, including any T065 fuel-price-spike +30% surcharge) into
+ * `state.planeMaintenanceOwedThisFiscalYear` every day-tick (turnLoop.ts) —
+ * this file's ONLY job regarding that field is to read it, fold it into the
+ * SAME combined bill as this year's tax, and reset it to `0`.
+ *
+ * Deliberately NOT covered by the Noob first-tax-year waiver above: §3's
+ * waiver text is specifically about the TAX bill ("First tax year —
+ * waived"), and plane maintenance is a distinct carrying cost §16 never
+ * connects to that waiver — `planeMaintenanceOwed` is computed and billed
+ * even in a Noob's waived first year.
+ *
+ * Payment-order tie-break: `combinedOwed = taxOwed + planeMaintenanceOwed`
+ * is deducted from cash, then deposits, then any shortfall becomes/extends
+ * `state.taxDebt` — the EXACT SAME mechanics already used for tax alone (see
+ * the deduction-order section above), just against a larger combined bill.
+ * When a shortfall forces only PART of `combinedOwed` to be actually paid,
+ * this file attributes the paid amount to `taxPaid` FIRST (up to `taxOwed`
+ * in full) and whatever's left over to `planeMaintenancePaid` — an arbitrary
+ * but deterministic and clearly documented convention (the two amounts are
+ * drawn from one shared pool with no natural split of a shortfall between
+ * them), consistent with this file's existing "simple, deterministic-enough
+ * choice" philosophy for the deposit-draining order above.
  */
 
 import { CONFIG } from './config'
@@ -172,16 +202,19 @@ function computeTaxOwed(taxableBase: number, tier: CATier): number {
  *      'none'`, T031/ca.ts) — UNLESS this is a Noob-difficulty game's
  *      first-ever year-end (`fiscalYear === 1`), in which case `taxOwed` is
  *      forced to `0` (§3 waiver — see file header).
- *   3. Deducts `taxOwed` from `state.cash` first, then from
- *      `state.bankAccounts[*].depositBalance` (iteration order =
+ *   3. T064: adds `planeMaintenanceOwed` (`state.planeMaintenanceOwedThisFiscalYear
+ *      ?? 0` — NOT subject to the Noob waiver) to `taxOwed`, forming
+ *      `combinedOwed`, then deducts `combinedOwed` from `state.cash` first,
+ *      then from `state.bankAccounts[*].depositBalance` (iteration order =
  *      `Object.keys(state.bankAccounts)`, see file header) until covered or
  *      every source is drained to exactly `0`.
  *   4. Any remaining shortfall becomes (or tops up) `state.taxDebt` — see
  *      file header for why this is a dedicated field rather than a `Loan`.
- *   5. Appends a `TaxRecord` to `state.taxHistory`.
- *   6. Resets `realizedProfitThisFiscalYear`/`depositInterestThisFiscalYear`
- *      to `0` for the new fiscal year, regardless of whether tax was
- *      actually charged.
+ *   5. Appends a `TaxRecord` (including the new `planeMaintenanceOwed`/
+ *      `planeMaintenancePaid` fields, T064) to `state.taxHistory`.
+ *   6. Resets `realizedProfitThisFiscalYear`/`depositInterestThisFiscalYear`/
+ *      `planeMaintenanceOwedThisFiscalYear` to `0` for the new fiscal year,
+ *      regardless of whether tax/maintenance was actually charged.
  *
  * Pure function: returns a NEW `GameState`; never mutates its argument.
  */
@@ -201,8 +234,14 @@ export function runYearEnd(state: GameState): GameState {
 
   const taxOwed = isNoobFirstYearWaiver ? 0 : computeTaxOwed(taxableBase, caTierActive)
 
+  // T064 (§16 Aviation): plane maintenance is billed ALONGSIDE tax, from the
+  // same combined pool — see file header. NOT subject to the Noob waiver
+  // above (that waiver only forgives the tax bill).
+  const planeMaintenanceOwed = state.planeMaintenanceOwedThisFiscalYear ?? 0
+  const combinedOwed = taxOwed + planeMaintenanceOwed
+
   // Step 3a: deduct from cash first.
-  let remaining = taxOwed
+  let remaining = combinedOwed
   const cashPayment = Math.min(state.cash, remaining)
   const newCash = state.cash - cashPayment
   remaining -= cashPayment
@@ -235,7 +274,13 @@ export function runYearEnd(state: GameState): GameState {
     }
   }
 
-  const taxPaid = taxOwed - shortfall
+  // T064: attribute the combined payment to tax FIRST (up to its own owed
+  // amount in full), any remainder to plane maintenance — see file header's
+  // "payment-order tie-break" note for why this split is arbitrary-but-
+  // deterministic rather than a natural proportional one.
+  const totalPaid = combinedOwed - shortfall
+  const taxPaid = Math.min(taxOwed, totalPaid)
+  const planeMaintenancePaid = totalPaid - taxPaid
 
   const record: TaxRecord = {
     fiscalYear,
@@ -245,6 +290,8 @@ export function runYearEnd(state: GameState): GameState {
     taxPaid,
     caTierActive,
     forcedLoanTriggered,
+    planeMaintenanceOwed,
+    planeMaintenancePaid,
   }
 
   return {
@@ -259,6 +306,11 @@ export function runYearEnd(state: GameState): GameState {
     // that fiscal year") — reset so next year defaults back to no-CA unless
     // `hireCA` (ca.ts) is called again before the next year-end.
     hiredCATierThisFiscalYear: 'none',
+    // T064: this fiscal year's plane maintenance has now been billed (paid
+    // in full or short — either way accounted for above) — reset the
+    // accumulator for the new fiscal year, same as the two accumulators
+    // above.
+    planeMaintenanceOwedThisFiscalYear: 0,
   }
 }
 

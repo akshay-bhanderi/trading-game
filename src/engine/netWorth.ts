@@ -40,9 +40,25 @@
  * a real run — cargo starts empty at day 1 before any price has been seen —
  * but it matters for constructing minimal test fixtures, so the behavior is
  * made explicit and consistent here rather than left to chance.
+ *
+ * ---------------------------------------------------------------------------
+ * T064 addition (§16 Aviation) — owned planes count toward net worth at
+ * their current DEPRECIATED value
+ * ---------------------------------------------------------------------------
+ * §16: "a plane's value for net worth (§4) and for sale starts at 90% of
+ * purchase price and depreciates 2%/game-year, floored at 40%." Every plane
+ * in `state.planes` contributes `planeDepreciatedValue(plane, state.day)`
+ * (aviation.ts) to the formula below, added alongside cash/deposits/goods
+ * and before debt is subtracted — planes are an ASSET like cargo or
+ * deposits, not a liability, regardless of their current lease status
+ * (Idle/Leased/Personal all count the same toward net worth; only the sale
+ * price differs from lease income, and neither is relevant to THIS
+ * calculation). `state.planes ?? []` mirrors every other optional-array
+ * field's read convention elsewhere in this codebase.
  */
 
 import { GOODS } from './data/goods'
+import { planeDepreciatedValue } from './aviation'
 import type { GameState } from './types'
 
 /** O(1) good-id -> basePrice lookup, built once from the goods data file. */
@@ -79,7 +95,12 @@ export function calcNetWorth(state: GameState): number {
     goodsValue += holding.qty * unitPrice
   }
 
-  return state.cash + deposits + goodsValue - debt
+  let planesValue = 0
+  for (const plane of state.planes ?? []) {
+    planesValue += planeDepreciatedValue(plane, state.day)
+  }
+
+  return state.cash + deposits + goodsValue + planesValue - debt
 }
 
 /**

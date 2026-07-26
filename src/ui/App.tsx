@@ -5,6 +5,7 @@ import TitleScreen from './screens/TitleScreen'
 import MarketScreen from './screens/MarketScreen'
 import TravelScreen from './screens/TravelScreen'
 import BankScreen from './screens/BankScreen'
+import AviationScreen from './screens/AviationScreen'
 import NewspaperScreen from './screens/NewspaperScreen'
 import YearEndScreen from './screens/YearEndScreen'
 import GameOverScreen from './screens/GameOverScreen'
@@ -161,6 +162,11 @@ function App() {
       {effectivePopup === 'newspaper' && (
         <PopupLayer title="Newspaper" onClose={() => setPopup(null)}>
           <NewspaperScreen />
+        </PopupLayer>
+      )}
+      {effectivePopup === 'aviation' && (
+        <PopupLayer title="Aviation" onClose={() => setPopup(null)}>
+          <AviationScreen />
         </PopupLayer>
       )}
       {effectivePopup === 'yearend' && pendingYearEnd && (
