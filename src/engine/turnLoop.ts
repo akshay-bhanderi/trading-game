@@ -251,6 +251,7 @@ import { createRng } from './rng'
 import { updatePeakNetWorth } from './netWorth'
 import { maybeRecomputeRank } from './rank'
 import { accrueDepositInterest } from './bank/deposits'
+import { accrueLoanInterest } from './bank/loans'
 import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
 import type { GameState, GoodId, PriceState } from './types'
 
@@ -371,5 +372,17 @@ export function advanceDay(state: GameState): GameState {
   // rank recompute above doesn't matter (deposit interest isn't a rank
   // formula input), so this simply runs last.
   // ---------------------------------------------------------------------
-  return accrueDepositInterest(withRank)
+  const withDepositInterest = accrueDepositInterest(withRank)
+
+  // ---------------------------------------------------------------------
+  // T023 addition (same additive-step pattern as T022's deposit-interest
+  // line immediately above) — accrues per-city SIMPLE daily loan interest
+  // (§9 "Loans") once per day-tick. See /src/engine/bank/loans.ts's
+  // `accrueLoanInterest` file header for the full simple-vs-compound
+  // rationale and the accruedInterest-bucket design. Order relative to
+  // `accrueDepositInterest` doesn't matter (the two touch disjoint
+  // `BankAccount` fields — `depositBalance` vs. `loan.accruedInterest` — and
+  // neither is a rank-formula input), so this simply runs last.
+  // ---------------------------------------------------------------------
+  return accrueLoanInterest(withDepositInterest)
 }
