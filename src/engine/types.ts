@@ -267,6 +267,20 @@ export interface Loan {
   startDay: number
   /** Loan term in days — 60 per §9. */
   termDays: number
+  /**
+   * T024 (§9 Default, Restructure branch) — true once this loan has been
+   * refinanced via `resolveDefault(state, 'restructure')`
+   * (/src/engine/bank/default.ts). MINIMUM VIABLE v1 scope: this flag alone
+   * is set at restructure time; it does NOT yet cause `accrueLoanInterest`
+   * (T023, /src/engine/bank/loans.ts) to actually apply the doubled
+   * interest rate + daily collector fee described in §9 — that ongoing-
+   * accrual behavior is a documented FOLLOW-UP for a future extension of
+   * `accrueLoanInterest` to branch on this flag. See default.ts's file
+   * header for the full scope rationale. `undefined` is equivalent to
+   * `false` (never restructured) — every loan created before T024 has no
+   * opinion on this field.
+   */
+  restructured?: boolean
 }
 
 export interface BankAccount {
@@ -418,4 +432,65 @@ export interface GameState {
 
   /** Last computed hidden rank + the day it was computed (§8). */
   rankCache: RankCache
+
+  // ---------------------------------------------------------------------
+  // T024 additions (§9 Default) — all optional, backward compatible with
+  // every earlier task's `GameState` fixtures (none of which set any of
+  // these; treated as "not tracking / not awaiting / not over" wherever
+  // read). See /src/engine/bank/default.ts's file header for the full
+  // trigger-detection and resolution rationale.
+  // ---------------------------------------------------------------------
+
+  /**
+   * Tracks how many consecutive days total debt has exceeded
+   * `CONFIG.banking.default.debtToNetWorthRatioTrigger` (2x) times net
+   * worth. Semantics: `null`/`undefined` = NOT currently over threshold; a
+   * day number = the day it FIRST became over-threshold (the start of the
+   * current streak) — reset to `null` the moment debt drops back under the
+   * threshold on any later day. Updated once per day-tick by
+   * `updateDefaultTracking` (default.ts), wired into `advanceDay`
+   * (turnLoop.ts). See default.ts for the exact
+   * `state.day - debtOverThresholdSinceDay >= debtToNetWorthTriggerDays`
+   * trigger-firing formula that consumes this field.
+   */
+  debtOverThresholdSinceDay?: number | null
+
+  /**
+   * Non-null once the bank has confronted the player with a default
+   * decision (either §9 trigger condition has fired). `triggeredBy`
+   * identifies which condition fired; `cityId` is only present for
+   * `'overdueLoan'` (identifies which bank's loan is overdue —
+   * `'debtRatio'` is a whole-portfolio condition with no single city to
+   * name). Set by `updateDefaultTrigger` (default.ts, wired into
+   * `advanceDay`) and NEVER auto-cleared by the underlying condition
+   * resolving itself — only `resolveDefault` (the player's actual choice)
+   * clears it back to `null`. UI (T040/T043, not built yet) is expected to
+   * surface a three-choice prompt whenever this is non-null and call
+   * `resolveDefault` with the player's pick.
+   */
+  awaitingDefaultDecision?: { triggeredBy: 'overdueLoan' | 'debtRatio'; cityId?: CityId } | null
+
+  /**
+   * Set by `resolveDefault(state, 'restructure')` to `state.day +
+   * CONFIG.banking.default.restructure.recheckAfterDays` (15 days later).
+   * `checkRestructureRecheck` (default.ts, wired into `advanceDay`)
+   * compares debt-to-net-worth against the trigger again once `state.day
+   * >= restructureRecheckDay`, forcing `gameOver: true` if still over
+   * threshold, and always clears this field back to `null` once the
+   * recheck has run (whichever way it resolves) so it never fires twice.
+   * `null`/`undefined` = no restructure recheck pending.
+   */
+  restructureRecheckDay?: number | null
+
+  /**
+   * True once the run has ended, either via the player declaring
+   * bankruptcy (`resolveDefault(state, 'bankruptcy')`) or a forced
+   * restructure-recheck game-over (`checkRestructureRecheck`). Final score
+   * is `state.peakNetWorth` (§1), already tracked continuously by
+   * `updatePeakNetWorth` (netWorth.ts, T009) — no separate score field is
+   * needed. `undefined`/`false` = run still in progress. UI (T043, not
+   * built yet) is expected to show the Game Over screen whenever this
+   * becomes true.
+   */
+  gameOver?: boolean
 }

@@ -177,14 +177,14 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
   - Acceptance criteria: `deposit(state, cityId, amount)` and `withdraw(state, cityId, amount)` only succeed while `state.currentCity === cityId` (v1's explicit simplification — deposits/loans live at the specific city's bank, no cross-city routing). Daily compounding interest rates by bank size (Small 0.10%, Medium 0.14%, Large 0.18%, Huge/Novara 0.25% — Large/Huge/Novara unreachable in v1 scope per §13, implement generically anyway) accrue via a `accrueDepositInterest(state)` hook intended to be called once per day-tick. Unit test covers multi-day compounding matches a hand-computed value within floating-point tolerance.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T023 — Bank loans (issuance, rank-scaled cap, interest, repayment)**
+- [x] **T023 — Bank loans (issuance, rank-scaled cap, interest, repayment)**
   - Doc references: §9 (Loans)
   - Dependencies: T021, T022, T003
   - File path hints: `/src/engine/bank/loans.ts`
   - Acceptance criteria: `takeLoan(state, cityId, amount)` computes max principal as `baseCap(bankSize) × rankFactor(rank)` (rankFactor = 1.8^(rank-1)) and rejects amounts above it. Enforces one active loan per bank and a max of 3 concurrent banks with active loans. Daily simple interest accrues by bank size (0.9/0.7/0.55/0.4%) × difficulty's loan-interest multiplier (§3). `repayLoan(state, cityId, amount)` reduces principal+accrued interest and, on full on-time repayment, bumps `repaymentRecord` by +0.1 (clamped). Unit tests cover cap rejection at low rank, interest accrual over N days, and the repayment-record bump.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T024 — Default flow (three player-choice branches)**
+- [x] **T024 — Default flow (three player-choice branches)**
   - Doc references: §9 (Default)
   - Dependencies: T023, T009
   - File path hints: `/src/engine/bank/default.ts`
@@ -195,21 +195,21 @@ Tasks are listed in dependency order within numbered phases. To pick work: find 
 
 ## Phase 4 — Bots & Balance Harness (First Pass)
 
-- [ ] **T025 — Random bot strategy**
+- [x] **T025 — Random bot strategy**
   - Doc references: §11 ("random trader")
   - Dependencies: T011, T012, T013, T014, T015, T004
   - File path hints: `/src/engine/bots/randomBot.ts`
   - Acceptance criteria: A pure function `randomBotStep(state, rng)` picks a random valid action each day (random buy/sell qty within limits, random travel-or-stay) using only the seeded RNG — no use of newspaper/rank/loans. Runs 90 simulated days without throwing in a smoke test.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T026 — Greedy spread-chaser bot strategy**
+- [x] **T026 — Greedy spread-chaser bot strategy**
   - Doc references: §11 ("greedy spread-chaser ignoring news")
   - Dependencies: T011, T012, T013, T014, T015, T008, T004
   - File path hints: `/src/engine/bots/greedyBot.ts`
   - Acceptance criteria: `greedyBotStep(state, rng)` always buys the currently-cheapest-relative-to-base good it can afford/carry and travels toward the best known remembered sell price, ignoring newspaper/rumor state entirely (must not import `newspaper.ts` — enforce via code review/comment). Smoke test runs 90 days without throwing.
   - Mobile/desktop note: N/A — engine only, no UI.
 
-- [ ] **T027 — News-follower bot strategy (uses rumors + loans)**
+- [x] **T027 — News-follower bot strategy (uses rumors + loans)**
   - Doc references: §11 ("news-follower using rumors + loans")
   - Dependencies: T018, T023, T015, T004
   - File path hints: `/src/engine/bots/newsBot.ts`

@@ -252,6 +252,7 @@ import { updatePeakNetWorth } from './netWorth'
 import { maybeRecomputeRank } from './rank'
 import { accrueDepositInterest } from './bank/deposits'
 import { accrueLoanInterest } from './bank/loans'
+import { checkRestructureRecheck, updateDefaultTrigger } from './bank/default'
 import { getActiveEventEffectsFor, resolveDueEvents } from './events/resolution'
 import type { GameState, GoodId, PriceState } from './types'
 
@@ -384,5 +385,22 @@ export function advanceDay(state: GameState): GameState {
   // `BankAccount` fields — `depositBalance` vs. `loan.accruedInterest` — and
   // neither is a rank-formula input), so this simply runs last.
   // ---------------------------------------------------------------------
-  return accrueLoanInterest(withDepositInterest)
+  const withLoanInterest = accrueLoanInterest(withDepositInterest)
+
+  // ---------------------------------------------------------------------
+  // T024 addition (same additive-step pattern as T022/T023 above) — §9
+  // "Default" flow. Runs AFTER interest accrual so today's freshly-accrued
+  // debt is what the trigger checks consider. Two small, independent steps:
+  //   1. `updateDefaultTrigger` (bank/default.ts) refreshes the
+  //      debt-over-threshold consecutive-days counter for today and, if
+  //      either §9 trigger condition now holds, raises
+  //      `awaitingDefaultDecision` (sticky — never auto-cleared here; only
+  //      `resolveDefault`, the player's own choice, clears it).
+  //   2. `checkRestructureRecheck` (bank/default.ts) — a no-op unless a
+  //      prior Restructure resolution scheduled a recheck day that has now
+  //      arrived; forces `gameOver: true` if debt is still over-threshold
+  //      at that point. See bank/default.ts's file header for full
+  //      rationale on both steps.
+  // ---------------------------------------------------------------------
+  return checkRestructureRecheck(updateDefaultTrigger(withLoanInterest))
 }
