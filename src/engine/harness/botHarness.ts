@@ -142,6 +142,20 @@
  * pass today, because bots structurally never bankrupt themselves.
  *
  * ---------------------------------------------------------------------------
+ * T067 addition — `phase2AssetCheckpoints`, alongside `checkpoints`
+ * ---------------------------------------------------------------------------
+ * Now that newsBot (T067) opportunistically invests in §14-§16, this harness
+ * records a SECOND per-checkpoint stat set — `calcPhase2AssetValue(state)`
+ * (netWorth.ts) — at the exact same checkpoint days/moments as the existing
+ * net-worth checkpoints, using the exact same `computeCheckpointStats`
+ * aggregation. This lets a caller (T068's balance pass) see, e.g., "at day
+ * 90 the median bot holds $X in Phase 2 assets out of a $Y net worth" —
+ * whether these systems are a meaningful, load-bearing part of net worth
+ * growth or a rarely-triggered rounding error, without re-running the
+ * simulation a second time. See `calcPhase2AssetValue`'s own doc comment for
+ * why this is a separate lens from net worth, not a subset/superset of it.
+ *
+ * ---------------------------------------------------------------------------
  * Never crashes on a stuck seed — but DOES throw if one is actually stuck
  * ---------------------------------------------------------------------------
  * Every bot (T025-T027) is documented to always advance `state.day` by at
@@ -156,7 +170,7 @@
  */
 
 import { CONFIG } from '../config'
-import { calcNetWorth } from '../netWorth'
+import { calcNetWorth, calcPhase2AssetValue } from '../netWorth'
 import { createRng, type Rng } from '../rng'
 import type { Difficulty, GameState } from '../types'
 
@@ -273,6 +287,12 @@ export interface HarnessResult {
   /** Per-checkpoint-day statistics across all seeds — see `CheckpointStats`. */
   checkpoints: Record<number, CheckpointStats>
   /**
+   * T067 addition — per-checkpoint-day `calcPhase2AssetValue` statistics
+   * (same seeds, same checkpoint days, same aggregation as `checkpoints`
+   * above) — see file header's "T067 addition" section.
+   */
+  phase2AssetCheckpoints: Record<number, CheckpointStats>
+  /**
    * PROXY diagnostic, NOT a real bankruptcy rate — see file header's "KNOWN
    * GAP" section. Fraction of seeds where `awaitingDefaultDecision` became
    * non-null at any point during the run (the §9 default TRIGGER condition
@@ -301,6 +321,9 @@ interface SeedRunResult {
    * "Checkpoint value" section). Every requested checkpoint is always
    * present — see the backfill note in `simulateOneSeed`. */
   checkpointNetWorth: Record<number, number>
+  /** T067 addition — `calcPhase2AssetValue` recorded at the same moments as
+   * `checkpointNetWorth` above (see file header's "T067 addition" section). */
+  checkpointPhase2AssetValue: Record<number, number>
   /** Whether `awaitingDefaultDecision` was ever non-null during this run. */
   everAwaitingDefaultDecision: boolean
   /** Whether `state.gameOver` became true during this run. */
@@ -326,6 +349,7 @@ function simulateOneSeed(
   const startingDay = state.day
   const recorded = new Set<number>()
   const checkpointNetWorth: Record<number, number> = {}
+  const checkpointPhase2AssetValue: Record<number, number> = {}
   let everAwaitingDefaultDecision = false
 
   const maxIterations = days * MAX_ITERATIONS_PER_DAY_MULTIPLIER
@@ -357,6 +381,7 @@ function simulateOneSeed(
     for (const checkpoint of checkpointDays) {
       if (!recorded.has(checkpoint) && state.day >= checkpoint) {
         checkpointNetWorth[checkpoint] = calcNetWorth(state)
+        checkpointPhase2AssetValue[checkpoint] = calcPhase2AssetValue(state)
         recorded.add(checkpoint)
       }
     }
@@ -371,14 +396,17 @@ function simulateOneSeed(
   // so every checkpoint's `values` array always has exactly `seedsCount`
   // entries — no caller needs to special-case a missing/undefined data point.
   const finalNetWorth = calcNetWorth(state)
+  const finalPhase2AssetValue = calcPhase2AssetValue(state)
   for (const checkpoint of checkpointDays) {
     if (!recorded.has(checkpoint)) {
       checkpointNetWorth[checkpoint] = finalNetWorth
+      checkpointPhase2AssetValue[checkpoint] = finalPhase2AssetValue
     }
   }
 
   return {
     checkpointNetWorth,
+    checkpointPhase2AssetValue,
     everAwaitingDefaultDecision,
     gameOver: state.gameOver === true,
   }
@@ -430,8 +458,10 @@ export function runHarness(options: RunHarnessOptions): HarnessResult {
     .sort((a, b) => a - b)
 
   const valuesByCheckpoint: Record<number, number[]> = {}
+  const phase2ValuesByCheckpoint: Record<number, number[]> = {}
   for (const checkpoint of checkpointDays) {
     valuesByCheckpoint[checkpoint] = []
+    phase2ValuesByCheckpoint[checkpoint] = []
   }
 
   let defaultTriggeredCount = 0
@@ -442,14 +472,17 @@ export function runHarness(options: RunHarnessOptions): HarnessResult {
 
     for (const checkpoint of checkpointDays) {
       ;(valuesByCheckpoint[checkpoint] as number[]).push(result.checkpointNetWorth[checkpoint] as number)
+      ;(phase2ValuesByCheckpoint[checkpoint] as number[]).push(result.checkpointPhase2AssetValue[checkpoint] as number)
     }
     if (result.everAwaitingDefaultDecision) defaultTriggeredCount++
     if (result.gameOver) gameOverCount++
   }
 
   const checkpoints: Record<number, CheckpointStats> = {}
+  const phase2AssetCheckpoints: Record<number, CheckpointStats> = {}
   for (const checkpoint of checkpointDays) {
     checkpoints[checkpoint] = computeCheckpointStats(valuesByCheckpoint[checkpoint] as number[])
+    phase2AssetCheckpoints[checkpoint] = computeCheckpointStats(phase2ValuesByCheckpoint[checkpoint] as number[])
   }
 
   return {
@@ -459,6 +492,7 @@ export function runHarness(options: RunHarnessOptions): HarnessResult {
     difficulty,
     checkpointDays,
     checkpoints,
+    phase2AssetCheckpoints,
     defaultTriggeredRate: seedsCount === 0 ? 0 : defaultTriggeredCount / seedsCount,
     defaultTriggeredCount,
     gameOverRate: seedsCount === 0 ? 0 : gameOverCount / seedsCount,

@@ -11,10 +11,12 @@ import NewspaperScreen from './screens/NewspaperScreen'
 import YearEndScreen from './screens/YearEndScreen'
 import GameOverScreen from './screens/GameOverScreen'
 import RealEstateScreen from './screens/RealEstateScreen'
+import MenuScreen from './screens/MenuScreen'
 import HubScene from './scene/HubScene'
 import Hud, { type PopupKind } from './components/Hud'
 import PopupLayer from './components/PopupLayer'
 import DayTransition from './components/DayTransition'
+import ConfirmDialog from './components/ConfirmDialog'
 import { CITIES } from '../engine/data/cities'
 import { cargoUsed } from '../engine/cargo'
 import { isHotelOwnedByPlayer } from '../engine/hotel'
@@ -30,10 +32,15 @@ const TRANSITION_DURATION_MS = 1100
 function App() {
   const game = useGameStore((s) => s.game)
   const stay = useGameStore((s) => s.stay)
-  const save = useGameStore((s) => s.save)
   const justSaved = useGameStore((s) => s.justSaved)
   const buildOrUpgradeHotel = useGameStore((s) => s.buildOrUpgradeHotel)
   const [popup, setPopup] = useState<PopupKind>(null)
+  // Confirmation gate in front of `stay()` — advancing the day is a
+  // one-tap action right next to Travel/Market in the HUD, easy to hit by
+  // accident; this makes it a deliberate two-tap action instead. Plain
+  // component state (not tied to `PopupKind`) since a `ConfirmDialog` is a
+  // short yes/no interrupt, not a browsable panel.
+  const [showStayConfirm, setShowStayConfirm] = useState(false)
 
   // Detects a day advancing (Stay) or the current city changing (Travel
   // completing) and shows a brief DayTransition overlay marking the moment
@@ -123,23 +130,33 @@ function App() {
 
   return (
     <div className="app-frame app-frame--scene">
-      <HubScene cityId={game.currentCity} />
+      <HubScene cityId={game.currentCity} cityName={city?.name ?? game.currentCity} />
       <Hud
-        cityName={city?.name ?? game.currentCity}
         day={game.day}
         cash={game.cash}
         ownedGoodCount={ownedGoodCount}
         cargoUsed={cargoUsed(game)}
         cargoCapacity={game.cargoCapacity}
         onOpen={setPopup}
-        onStay={() => stay()}
-        onSave={() => save()}
+        onStayRequest={() => setShowStayConfirm(true)}
         justSaved={justSaved}
         currentCityHotelUnowned={!isHotelOwnedByPlayer(game, game.currentCity)}
         onBuyHotelHere={() => buildOrUpgradeHotel(game.currentCity)}
       />
 
       {transition && <DayTransition key={transition.key} message={transition.message} variant={transition.variant} />}
+
+      {showStayConfirm && (
+        <ConfirmDialog
+          message="Move to the next day? Prices will shift and today's paper closes out."
+          confirmLabel="Advance"
+          onConfirm={() => {
+            setShowStayConfirm(false)
+            stay()
+          }}
+          onCancel={() => setShowStayConfirm(false)}
+        />
+      )}
 
       {effectivePopup === 'market' && (
         <PopupLayer title="Market" onClose={() => setPopup(null)}>
@@ -183,6 +200,11 @@ function App() {
       {effectivePopup === 'aviation' && (
         <PopupLayer title="Aviation" onClose={() => setPopup(null)}>
           <AviationScreen />
+        </PopupLayer>
+      )}
+      {effectivePopup === 'menu' && (
+        <PopupLayer title="Menu" onClose={() => setPopup(null)}>
+          <MenuScreen onClose={() => setPopup(null)} />
         </PopupLayer>
       )}
       {effectivePopup === 'yearend' && pendingYearEnd && (

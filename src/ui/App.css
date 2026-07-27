@@ -92,7 +92,14 @@ body {
   z-index: 2;
 }
 
+.hud-top-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .hud-top {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -122,8 +129,9 @@ body {
 }
 
 .hud-day {
-  font-size: 12px;
-  opacity: 0.85;
+  font-size: 18px;
+  font-weight: bold;
+  opacity: 0.95;
 }
 
 .hud-wallet {
@@ -134,10 +142,33 @@ body {
 .hud-bottom {
   pointer-events: none;
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   padding: 10px 12px 16px;
   gap: 6px;
+  row-gap: 8px;
+}
+
+.hud-menu-btn {
+  pointer-events: auto;
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  min-height: 32px;
+  min-width: 32px;
+  width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  clip-path: var(--pixel-clip);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
 }
 
 .hud-icon-btn {
@@ -160,12 +191,16 @@ body {
   line-height: 1;
 }
 
+/* Deliberately a normal flex-flow child (NOT position:absolute) — it used
+   to be pinned at a fixed `top` offset, which drifted into the canvas-drawn
+   sign board whenever the Pixi stage (a fixed 360x740 internal coordinate
+   system, scaled to fill whatever height the browser gives the frame) ended
+   up scaled differently than the offset assumed. Flowing it right after
+   `.hud-top` keeps it correctly clear of both the chips above and the sign
+   below at any viewport size, no fixed pixel guess required. */
 .hud-buy-hotel {
   pointer-events: auto;
-  position: absolute;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
+  margin-top: 6px;
   background: var(--good, #4a7c59);
   color: var(--paper);
   border: 2px solid var(--ink);
@@ -1000,4 +1035,73 @@ button.secondary {
 
 .warehouse-floor-locked {
   font-size: 12px;
+}
+
+/* ---------------------------------------------------------------------
+   Menu screen (pause/settings) — Backup Save, Sound/Music, New Game, Exit.
+   Reuses .card/.row/.muted, same as Bank/Aviation screens.
+   --------------------------------------------------------------------- */
+
+.menu-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-screen .card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-screen .card > button {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------
+   Confirm dialog — short yes/no interrupt (Stay/next-day, New Game, Exit).
+   Centered overlay, higher z-index than PopupLayer's bottom-sheet so it can
+   stack on top of it (e.g. New Game confirm opened from within the Menu
+   popup).
+   --------------------------------------------------------------------- */
+
+.confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  background: rgba(10, 8, 14, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 280px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 4px solid var(--ink);
+  clip-path: var(--pixel-clip);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.4);
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: pixel-fade-in 0.15s steps(4) both;
+}
+
+.confirm-card p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-actions button {
+  flex: 1;
 }

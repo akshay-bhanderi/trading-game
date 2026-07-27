@@ -31,29 +31,53 @@
  *     portfolio screen — clicking it calls `onBuyHotelHere` directly (wired
  *     to the store's `buildOrUpgradeHotel(currentCity)` in App.tsx) rather
  *     than opening any popup at all, for a one-tap purchase.
+ *
+ * ---------------------------------------------------------------------------
+ * Later UI-polish pass: Menu button, city name moved to the scene, bigger
+ * Day text, real Bank/Hotel icons
+ * ---------------------------------------------------------------------------
+ *   - City name no longer renders here — it moved to the persistent scene
+ *     itself, below the "TRADE WINDS OF SELVARA" signage (see HubScene.tsx),
+ *     so the top-left chip now shows only "Day N" (at a larger font size —
+ *     it was easy to miss at the old 12px).
+ *   - A `'menu'` `PopupKind` + a small hamburger button (`hud-menu-btn`,
+ *     absolutely centered at the very top, independent of the two corner
+ *     chips) opens the pause/settings menu (`MenuScreen.tsx`: Backup Save,
+ *     Sound/Music toggles, New Game, Exit). The standalone Save button
+ *     (`💾`) that used to live in the bottom bar was removed — "Backup Save"
+ *     in the new Menu screen replaces it (same underlying `save()` store
+ *     action); the `justSaved` toast below is unchanged and still fires
+ *     regardless of which entry point triggered `save()`.
+ *   - `BankIcon`/`HotelIcon` (PixelIcons.tsx) replace the old `LedgerIcon`/
+ *     🏨 emoji — a building with columns/pediment and a building with an
+ *     awning/door read more clearly as "bank" and "hotel" than a ledger book
+ *     or a generic emoji.
  */
 
-import {
-  BedIcon,
-  CargoIcon,
-  CoinIcon,
-  CompassIcon,
-  LedgerIcon,
-  SkylineIcon,
-} from './PixelIcons'
+import { BankIcon, BedIcon, CargoIcon, CoinIcon, CompassIcon, HotelIcon, MenuIcon, SkylineIcon } from './PixelIcons'
 
-export type PopupKind = 'market' | 'travel' | 'bank' | 'newspaper' | 'warehouse' | 'realestate' | 'aviation' | null
+export type PopupKind =
+  | 'market'
+  | 'travel'
+  | 'bank'
+  | 'newspaper'
+  | 'warehouse'
+  | 'realestate'
+  | 'aviation'
+  | 'menu'
+  | null
 
 interface HudProps {
-  cityName: string
   day: number
   cash: number
   ownedGoodCount: number
   cargoUsed: number
   cargoCapacity: number
   onOpen: (popup: Exclude<PopupKind, null>) => void
-  onStay: () => void
-  onSave: () => void
+  /** Requests confirmation before advancing the day — App.tsx owns the
+   * actual confirm dialog + the `stay()` call, this just signals the intent
+   * (see App.tsx's `showStayConfirm` state). */
+  onStayRequest: () => void
   justSaved: boolean
   /** True when the CURRENT city's hotel is not yet owned by the player —
    * gates the "buy hotel here" chip below (§12/§15). */
@@ -64,51 +88,62 @@ interface HudProps {
 }
 
 export default function Hud({
-  cityName,
   day,
   cash,
   ownedGoodCount,
   cargoUsed,
   cargoCapacity,
   onOpen,
-  onStay,
-  onSave,
+  onStayRequest,
   justSaved,
   currentCityHotelUnowned,
   onBuyHotelHere,
 }: HudProps) {
   return (
     <div className="hud">
-      <div className="hud-top">
-        <div className="hud-chip hud-city">
-          <span className="hud-city-name">{cityName}</span>
-          <span className="hud-day">Day {day}</span>
-        </div>
-        <div className="hud-chip hud-wallet">
-          <span className="icon-label">
-            <CoinIcon size={13} />${cash.toFixed(0)}
-          </span>
-          <span className="icon-label">
-            <CargoIcon size={13} />
-            {ownedGoodCount} goods · {cargoUsed}/{cargoCapacity}
-          </span>
-        </div>
-      </div>
+      <button className="hud-menu-btn" onClick={() => onOpen('menu')} aria-label="Menu">
+        <MenuIcon size={16} />
+      </button>
 
-      {currentCityHotelUnowned && (
-        <button className="hud-chip hud-buy-hotel" onClick={onBuyHotelHere}>
-          🏨 Buy hotel here
-        </button>
-      )}
+      {/* `.hud-top-group` wraps the top chips + the conditional buy-hotel
+          chip so `.hud`'s own `justify-content: space-between` still only
+          ever sees two children (this group + `.hud-bottom`) — otherwise a
+          3rd space-between participant gets spread toward the vertical
+          center instead of hugging the top, right where the canvas-drawn
+          sign board sits. */}
+      <div className="hud-top-group">
+        <div className="hud-top">
+          <div className="hud-chip hud-city">
+            <span className="hud-day">Day {day}</span>
+          </div>
+          <div className="hud-chip hud-wallet">
+            <span className="icon-label">
+              <CoinIcon size={13} />${cash.toFixed(0)}
+            </span>
+            <span className="icon-label">
+              <CargoIcon size={13} />
+              {ownedGoodCount} goods · {cargoUsed}/{cargoCapacity}
+            </span>
+          </div>
+        </div>
+
+        {currentCityHotelUnowned && (
+          <button className="hud-chip hud-buy-hotel" onClick={onBuyHotelHere}>
+            <span className="icon-label">
+              <HotelIcon size={14} /> Buy hotel here
+            </span>
+          </button>
+        )}
+      </div>
 
       <div className="hud-bottom">
         <button className="hud-icon-btn" onClick={() => onOpen('bank')} aria-label="Bank">
-          <LedgerIcon size={20} />
+          <BankIcon size={20} />
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('newspaper')} aria-label="Newspaper">
           <span className="hud-icon-glyph">📰</span>
         </button>
-        <button className="hud-icon-btn" onClick={onStay} aria-label="Stay">
+        <button className="hud-icon-btn" onClick={onStayRequest} aria-label="Stay">
           <BedIcon size={20} />
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('travel')} aria-label="Travel">
@@ -121,13 +156,10 @@ export default function Hud({
           <SkylineIcon size={20} />
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('realestate')} aria-label="Real Estate">
-          <span className="hud-icon-glyph">🏨</span>
+          <HotelIcon size={20} />
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('aviation')} aria-label="Aviation">
           <span className="hud-icon-glyph">✈️</span>
-        </button>
-        <button className="hud-icon-btn" onClick={onSave} aria-label="Save game">
-          <span className="hud-icon-glyph">💾</span>
         </button>
       </div>
 

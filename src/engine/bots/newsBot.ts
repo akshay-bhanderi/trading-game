@@ -111,6 +111,51 @@
  * turnLoop.test.ts's headless simulations and the other bots' smoke tests).
  *
  * ---------------------------------------------------------------------------
+ * T067 ADDITION — opportunistic Phase 2 investment (§14-§16)
+ * ---------------------------------------------------------------------------
+ * Doc references: §11 (this task's own file-path hints name newsBot as "the
+ * most sophisticated bot", the recommended candidate for exercising §14-§16
+ * so the harness can measure their effect on net worth growth), §14
+ * (Warehouse), §15 (Hotel), §16 (Aviation).
+ *
+ * `maybeInvestInPhase2Assets` (below) runs once per non-travel step, after
+ * the day's rumor-driven trading (`applySignalTrades`) and before the
+ * end-of-day travel decision — i.e. it only ever spends cash the day's
+ * PRIMARY trading strategy already decided not to use, never cash a live
+ * rumor position needs. It considers exactly three candidate actions in the
+ * bot's CURRENT city: build/upgrade a warehouse floor, build/upgrade a hotel,
+ * or (only at a Medium+ bank city, per `isPlanePurchaseAvailable`) buy the
+ * cheapest plane class and immediately lease it out monthly. Of whichever
+ * candidates are affordable (cash >= cost * `PHASE2_AFFORDABILITY_MULTIPLE`,
+ * a materially larger cushion than `LICENSE_AFFORDABILITY_MULTIPLE` above
+ * since these are large, only-50%-liquid capital commitments, not a small
+ * recurring trading unlock), it takes the CHEAPEST one and stops — never
+ * more than one Phase 2 purchase per day, mirroring `maybeBuyLicense`'s
+ * "at most one per day" reasoning: affording several individually against
+ * the SAME pre-purchase cash figure doesn't mean affording them all
+ * together, and stacking large outlays same-day would defeat the whole
+ * point of the affordability cushion.
+ *
+ * Random/greedy bots (`randomBot.ts`/`greedyBot.ts`) are deliberately left
+ * UNCHANGED — the task brief recommends news-follower specifically (already
+ * the "smartest" of the three, and the one this file's own §11 balance
+ * history shows compounds fastest), and extending all three at once would
+ * make it impossible for the harness/T068 balance pass to isolate Phase 2's
+ * effect from the extension itself.
+ *
+ * Deliberately NOT implemented here: actually routing cargo through a built
+ * warehouse (`storeGoods`/`withdrawGoods`) once one exists, or ever choosing
+ * `'leasedAnnual'`/`'personal'` plane status. The acceptance bar this task
+ * sets is "opportunistically build warehouses, buy hotels, and buy/lease
+ * planes" — building ownership, not operating every downstream mechanic each
+ * system offers. A warehouse the bot never stores anything in is a pure
+ * capital sink (spend cash, get only the 50% sell-back option back) rather
+ * than a net-worth booster, which is itself useful, honest information for
+ * the T068 balance pass to see in the harness's new Phase 2 asset stat
+ * (`netWorth.ts`'s `calcPhase2AssetValue`) — a documented scope boundary, not
+ * an oversight.
+ *
+ * ---------------------------------------------------------------------------
  * Never throws
  * ---------------------------------------------------------------------------
  * Every engine function this file calls (`buy`/`sell`/`travel`/`stay`/
@@ -129,15 +174,19 @@
 import { advanceTravelDay, travel } from '../actions/travel'
 import { stay } from '../actions/stay'
 import { buy, sell } from '../actions/trade'
+import { isPlanePurchaseAvailable, buyPlane, setPlaneStatus } from '../aviation'
 import { repayLoan, takeLoan } from '../bank/loans'
 import { cargoUsed } from '../cargo'
+import { CONFIG } from '../config'
 import { CITIES } from '../data/cities'
 import { GOODS } from '../data/goods'
+import { buildOrUpgradeHotel, getNextUpgradeCost } from '../hotel'
 import { generateDailyPaper } from '../newspaper'
 import type { Rng } from '../rng'
 import { advanceDay } from '../turnLoop'
-import type { CityId, Event, GameState, GoodId, NewspaperStory } from '../types'
+import type { CityId, Event, GameState, GoodId, NewspaperStory, PlaneClass } from '../types'
 import { buyLicense, checkCityUnlocks, checkGoodUnlocks } from '../unlocks'
+import { buildWarehouseFloor } from '../warehouse'
 
 // ---------------------------------------------------------------------------
 // Bot-local strategy tuning knobs (deliberately NOT in /src/engine/config.ts
@@ -202,6 +251,17 @@ const TRAVEL_MARGIN_THRESHOLD = 1.1
  */
 const LICENSE_AFFORDABILITY_MULTIPLE = 4
 
+/**
+ * T067 ADDITION — see file header's "opportunistic Phase 2 investment"
+ * section. Set well above `LICENSE_AFFORDABILITY_MULTIPLE` (4) because a
+ * license is a small, cheap, permanent trading unlock, while a warehouse
+ * floor/hotel tier/plane is a large capital outlay only 50% recoverable
+ * (sell-back fraction, §14/§15) or subject to a liquidation fee + ongoing
+ * depreciation (§16) — a bigger cash cushion ensures buying one never leaves
+ * the bot unable to fund its next high-confidence rumor position.
+ */
+const PHASE2_AFFORDABILITY_MULTIPLE = 8
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -244,6 +304,7 @@ function newsBotStepInner(state: GameState, rng: Rng): GameState {
 
   working = maybeRepayLoan(working)
   working = applySignalTrades(working, rng, signals)
+  working = maybeInvestInPhase2Assets(working)
   working = decideEndOfDay(working)
 
   return working
@@ -627,4 +688,88 @@ function findBestRememberedSellDestination(state: GameState): CityId | null {
   }
 
   return bestCity
+}
+
+// ---------------------------------------------------------------------------
+// Opportunistic Phase 2 investment (T067) — see file header for the full
+// design rationale (why one-per-day, why cheapest-first, why the higher
+// affordability multiple, why store/withdraw and leasedAnnual/personal are
+// out of scope).
+// ---------------------------------------------------------------------------
+
+/** The marginal cost (dollars) of the NEXT warehouse floor in `cityId`, or
+ * `null` if the player already owns the max (`CONFIG.warehouse.maxFloors`)
+ * floors there. Mirrors `hotel.ts`'s own `getNextUpgradeCost` shape, kept
+ * local since warehouse.ts doesn't export an equivalent helper (its own
+ * `buildWarehouseFloor` computes this internally but doesn't surface it). */
+function nextWarehouseFloorCost(state: GameState, cityId: CityId): number | null {
+  const currentFloors = state.warehouses?.[cityId]?.floorsBuilt ?? 0
+  if (currentFloors >= CONFIG.warehouse.maxFloors) return null
+  return CONFIG.warehouse.floors[currentFloors + 1]?.buildCost ?? null
+}
+
+/** The cheapest plane class currently configured, by `purchasePrice` — read
+ * generically off `CONFIG.aviation.classes` (rather than hardcoding
+ * `'propFeeder'`) so a future balance pass reordering/repricing the class
+ * table never silently strands this bot buying the wrong (pricier) class. */
+function cheapestPlaneClass(): { planeClass: PlaneClass; cost: number } {
+  let best: { planeClass: PlaneClass; cost: number } | null = null
+  for (const planeClass of Object.keys(CONFIG.aviation.classes) as PlaneClass[]) {
+    const cost = CONFIG.aviation.classes[planeClass].purchasePrice
+    if (!best || cost < best.cost) best = { planeClass, cost }
+  }
+  return best as { planeClass: PlaneClass; cost: number } // classes is always non-empty
+}
+
+/** Buys `planeClass` in `cityId`, then immediately leases it out monthly —
+ * the only status this bot ever chooses (see file header: Leased Monthly is
+ * cancellable any time with 3 days' notice, unlike Leased Annual's firm
+ * 90-day lock-in, and needs no travel-timing logic unlike Personal use). */
+function buyAndLeaseMonthly(state: GameState, cityId: CityId, planeClass: PlaneClass): GameState {
+  const afterBuy = buyPlane(state, cityId, planeClass)
+  if (afterBuy === state) return state
+
+  const planes = afterBuy.planes ?? []
+  const newPlane = planes[planes.length - 1] // buyPlane always appends
+  if (!newPlane) return afterBuy
+
+  return setPlaneStatus(afterBuy, newPlane.id, 'leasedMonthly')
+}
+
+/**
+ * Opportunistically spends SPARE cash (whatever the day's rumor-driven
+ * trading already decided not to use) on the cheapest of three candidate
+ * Phase 2 purchases in the bot's current city — see file header for the full
+ * "why one-per-day, cheapest-first, higher affordability bar" rationale.
+ * Exported for direct unit testing (deferred to T068 per this codebase's
+ * documented testing policy for Phase 2 — see phase-13-final-balance-pass.md).
+ */
+export function maybeInvestInPhase2Assets(state: GameState): GameState {
+  const cityId = state.currentCity
+  const city = CITIES.find((c) => c.id === cityId)
+  if (!city) return state
+
+  const candidates: Array<{ cost: number; apply: (s: GameState) => GameState }> = []
+
+  const warehouseCost = nextWarehouseFloorCost(state, cityId)
+  if (warehouseCost !== null) {
+    candidates.push({ cost: warehouseCost, apply: (s) => buildWarehouseFloor(s, cityId) })
+  }
+
+  const hotelCost = getNextUpgradeCost(state, city)
+  if (hotelCost !== null) {
+    candidates.push({ cost: hotelCost, apply: (s) => buildOrUpgradeHotel(s, cityId) })
+  }
+
+  if (isPlanePurchaseAvailable(state)) {
+    const { planeClass, cost } = cheapestPlaneClass()
+    candidates.push({ cost, apply: (s) => buyAndLeaseMonthly(s, cityId, planeClass) })
+  }
+
+  const affordable = candidates.filter((c) => state.cash >= c.cost * PHASE2_AFFORDABILITY_MULTIPLE)
+  if (affordable.length === 0) return state
+
+  affordable.sort((a, b) => a.cost - b.cost)
+  const chosen = affordable[0] as { cost: number; apply: (s: GameState) => GameState }
+  return chosen.apply(state)
 }

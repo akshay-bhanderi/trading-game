@@ -35,11 +35,17 @@ const CITY_PALETTE: Record<CityId, { wall: number; floor: number }> = {
 
 interface HubSceneProps {
   cityId: CityId
+  /** Display name of the current city — rendered below the "TRADE WINDS OF
+   * SELVARA" signage (see the `cityNameText` block in `onReady` below). Kept
+   * as a prop rather than derived from `cityId` here so this file doesn't
+   * need its own `CITIES` lookup — App.tsx already has the resolved name. */
+  cityName: string
 }
 
-export default function HubScene({ cityId }: HubSceneProps) {
+export default function HubScene({ cityId, cityName }: HubSceneProps) {
   const wallRef = useRef<Graphics | null>(null)
   const floorRef = useRef<Graphics | null>(null)
+  const cityNameTextRef = useRef<Text | null>(null)
 
   useEffect(() => {
     const palette = CITY_PALETTE[cityId]
@@ -49,7 +55,10 @@ export default function HubScene({ cityId }: HubSceneProps) {
       ?.clear()
       .rect(0, FLOOR_Y, STAGE_WIDTH, STAGE_HEIGHT - FLOOR_Y)
       .fill(palette.floor)
-  }, [cityId])
+    if (cityNameTextRef.current) {
+      cityNameTextRef.current.text = cityName
+    }
+  }, [cityId, cityName])
 
   return (
     <PixiStage
@@ -114,7 +123,14 @@ export default function HubScene({ cityId }: HubSceneProps) {
         // positioned in front of this canvas) so it never overlaps them; the
         // chips run roughly 12-54px from the top, so the sign starts at 96px
         // for a comfortable margin.
-        const SIGN_TOP = 96
+        // Pushed down from an earlier 96 — the HUD's top chips + the
+        // conditional "buy hotel here" chip are real (unscaled) DOM pixels,
+        // while this stage position scales with the canvas's rendered
+        // height; a short viewport shrinks the canvas-side gap faster than
+        // the DOM content above it, so extra stage-space clearance here
+        // keeps them from colliding even when the frame renders shorter
+        // than the 360x740 design height.
+        const SIGN_TOP = 170
         const signBoard = new Graphics()
         signBoard.roundRect(60, SIGN_TOP, 240, 44, 4).fill(0x2b1c10).stroke({ width: 3, color: 0x1a0f08 })
         root.addChild(signBoard)
@@ -134,6 +150,27 @@ export default function HubScene({ cityId }: HubSceneProps) {
         signText.position.set(60 + 120, SIGN_TOP + 22)
         root.addChild(signText)
 
+        // City name — moved here (below the brand sign) from the HUD's
+        // top-left chip, per design direction: the persistent scene reads
+        // "brand, then location" top-to-bottom rather than splitting that
+        // info between the canvas and the DOM overlay. Kept updated on
+        // travel via the `[cityId, cityName]` effect above (`cityNameTextRef`).
+        const CITY_NAME_TOP = SIGN_TOP + 44 + 14
+        const cityNameText = new Text({
+          text: cityName,
+          style: {
+            fontFamily: 'Georgia, serif',
+            fontSize: 14,
+            fontWeight: 'bold',
+            fill: 0xf4ecd8,
+            align: 'center',
+          },
+        })
+        cityNameText.anchor.set(0.5)
+        cityNameText.position.set(STAGE_WIDTH / 2, CITY_NAME_TOP)
+        root.addChild(cityNameText)
+        cityNameTextRef.current = cityNameText
+
         let sprite: AnimatedSprite | null = null
         loadCharacterAnimation('/assets/character/trader-idle.png').then((s) => {
           if (disposed) {
@@ -152,6 +189,7 @@ export default function HubScene({ cityId }: HubSceneProps) {
           root.destroy({ children: true })
           wallRef.current = null
           floorRef.current = null
+          cityNameTextRef.current = null
         }
       }}
     />

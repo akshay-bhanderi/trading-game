@@ -80,10 +80,35 @@
  * price differs from lease income, and neither is relevant to THIS
  * calculation). `state.planes ?? []` mirrors every other optional-array
  * field's read convention elsewhere in this codebase.
+ *
+ * ---------------------------------------------------------------------------
+ * T067 addition — `calcPhase2AssetValue`: a separate "how much is tied up in
+ * Phase 2" lens, NOT folded into `calcNetWorth` above
+ * ---------------------------------------------------------------------------
+ * The §11 bot harness (T028) needs to see whether §14-§16 actually move net
+ * worth once a bot opportunistically invests in them (T067's newsBot
+ * extension). `calcPhase2AssetValue` reports the current BOOK VALUE held
+ * across all three systems: warehouse build equity (`cumulativeBuildCost` —
+ * what was paid in, not the 50% sell-back price, mirroring how plane value
+ * above is counted at its depreciated value, not its liquidation-fee-adjusted
+ * resale price) plus currently-stored warehouse goods, hotel cumulative
+ * investment (`cumulativeInvested`, same paid-in-not-sell-back-halved
+ * treatment), and plane depreciated value.
+ *
+ * Deliberately NOT wired into `calcNetWorth` itself: hotel investment was
+ * never part of the §4 net-worth formula (only warehouse goods and plane
+ * value were, via T048/T064 above), and changing that formula is a T068
+ * balance decision, not something to slip in silently as a side effect of a
+ * bot-harness reporting task. This function OVERLAPS with `calcNetWorth` on
+ * purpose (warehouse goods value and plane value are counted by both) — it
+ * answers a different question ("how much of what I have is Phase 2
+ * assets?"), not "what should be added on top of net worth?"
  */
 
+import { CITIES } from './data/cities'
 import { GOODS } from './data/goods'
-import { calcWarehouseGoodsValue } from './warehouse'
+import { calcWarehouseGoodsValue, cumulativeBuildCost } from './warehouse'
+import { cumulativeInvested } from './hotel'
 import { planeDepreciatedValue } from './aviation'
 import type { GameState } from './types'
 
@@ -157,4 +182,42 @@ export function updatePeakNetWorth(state: GameState): GameState {
     ...state,
     peakNetWorth: netWorth,
   }
+}
+
+/**
+ * Book value currently held across the three Phase 2 systems (§14 Warehouse,
+ * §15 Hotel, §16 Aviation) — see this file's own T067 doc-comment section
+ * above for why this is a SEPARATE lens from `calcNetWorth`, not an addend to
+ * it. Used by the §11 bot harness (T028/T067) to report a "Phase 2 asset
+ * value" stat alongside net worth, so a balance pass (T068) can see how much
+ * of a bot's net worth actually comes from these systems.
+ */
+export function calcPhase2AssetValue(state: GameState): number {
+  let warehouseValue = 0
+  if (state.warehouses) {
+    for (const cityId of Object.keys(state.warehouses)) {
+      const warehouse = state.warehouses[cityId]
+      if (!warehouse || warehouse.floorsBuilt <= 0) continue
+      warehouseValue += cumulativeBuildCost(warehouse.floorsBuilt)
+      warehouseValue += calcWarehouseGoodsValue(state, cityId)
+    }
+  }
+
+  let hotelValue = 0
+  if (state.hotels) {
+    for (const cityId of Object.keys(state.hotels)) {
+      const holding = state.hotels[cityId]
+      if (!holding) continue
+      const city = CITIES.find((c) => c.id === cityId)
+      if (!city) continue
+      hotelValue += cumulativeInvested(city, holding.tier)
+    }
+  }
+
+  let planeValue = 0
+  for (const plane of state.planes ?? []) {
+    planeValue += planeDepreciatedValue(plane, state.day)
+  }
+
+  return warehouseValue + hotelValue + planeValue
 }
