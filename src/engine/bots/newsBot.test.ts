@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../config'
+import { CITIES } from '../data/cities'
 import { createRng } from '../rng'
 import type { Event, GameState } from '../types'
-import { analyzeRumorSignals, buyIntoRumor, maybeRepayLoan, newsBotStep } from './newsBot'
+import { analyzeRumorSignals, buyIntoRumor, maybeInvestInPhase2Assets, maybeRepayLoan, newsBotStep } from './newsBot'
 
 /**
  * Builds a minimal-but-valid `GameState`, following the same pattern as
@@ -385,5 +386,88 @@ describe('maybeRepayLoan', () => {
     const state = makeState({ currentCity: 'farrow', cash: 10_000, bankAccounts: {} })
     const result = maybeRepayLoan(state)
     expect(result).toBe(state)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// maybeInvestInPhase2Assets — T067 deferred tests (see file header's "T067
+// ADDITION" section and tasks/phase-13-final-balance-pass.md's T068 entry).
+// ---------------------------------------------------------------------------
+describe('maybeInvestInPhase2Assets', () => {
+  const FARROW = CITIES.find((c) => c.id === 'farrow') as { hotelPerNight: number }
+  const WAREHOUSE_FLOOR_1_COST = CONFIG.warehouse.floors[1]?.buildCost as number
+  const HOTEL_INN_COST_FARROW = (CONFIG.hotel.tiers[0]?.buildOrUpgradeCostMultiplier as number) * FARROW.hotelPerNight
+  const PLANE_COST = CONFIG.aviation.classes.propFeeder.purchasePrice
+  const PHASE2_MULTIPLE = 20 // mirrors newsBot.ts's own PHASE2_AFFORDABILITY_MULTIPLE (T068 re-tune)
+
+  it('does nothing when cash clears no candidate\'s affordability bar', () => {
+    const state = makeState({ currentCity: 'farrow', cash: WAREHOUSE_FLOOR_1_COST * PHASE2_MULTIPLE - 1 })
+    expect(maybeInvestInPhase2Assets(state)).toBe(state)
+  })
+
+  it('builds a warehouse floor once cash clears ITS bar, even though the hotel/plane bars are not yet cleared', () => {
+    const state = makeState({ currentCity: 'farrow', cash: WAREHOUSE_FLOOR_1_COST * PHASE2_MULTIPLE })
+    const result = maybeInvestInPhase2Assets(state)
+    expect(result.warehouses?.farrow).toEqual({ floorsBuilt: 1, insured: false })
+    expect(result.cash).toBe(state.cash - WAREHOUSE_FLOOR_1_COST)
+  })
+
+  it('picks the CHEAPEST affordable candidate when several clear their bars (warehouse over hotel)', () => {
+    const state = makeState({ currentCity: 'farrow', cash: HOTEL_INN_COST_FARROW * PHASE2_MULTIPLE })
+    const result = maybeInvestInPhase2Assets(state)
+    // Both warehouse floor 1 and the hotel Inn are affordable — warehouse is
+    // cheaper, so it (not the hotel) is the one actually bought.
+    expect(result.warehouses?.farrow).toEqual({ floorsBuilt: 1, insured: false })
+    expect(result.hotels?.farrow).toBeUndefined()
+  })
+
+  it('buys the hotel once the warehouse is already maxed out (so warehouse is no longer a candidate)', () => {
+    const state = makeState({
+      currentCity: 'farrow',
+      cash: HOTEL_INN_COST_FARROW * PHASE2_MULTIPLE,
+      warehouses: { farrow: { floorsBuilt: CONFIG.warehouse.maxFloors, insured: false } },
+    })
+    const result = maybeInvestInPhase2Assets(state)
+    expect(result.hotels?.farrow).toEqual({ tier: 0 })
+  })
+
+  it('buys and monthly-leases the cheapest plane class at a Medium+ bank city once warehouse/hotel are maxed', () => {
+    const state = makeState({
+      currentCity: 'port-vela',
+      unlockedCityIds: ['farrow', 'saltmere', 'copperfell', 'millbrook', 'port-vela'],
+      cash: PLANE_COST * PHASE2_MULTIPLE,
+      warehouses: { 'port-vela': { floorsBuilt: CONFIG.warehouse.maxFloors, insured: false } },
+      hotels: { 'port-vela': { tier: CONFIG.hotel.tiers.length - 1 } },
+    })
+    const result = maybeInvestInPhase2Assets(state)
+    expect(result.planes).toHaveLength(1)
+    expect(result.planes?.[0]?.class).toBe('propFeeder')
+    expect(result.planes?.[0]?.status).toBe('leasedMonthly')
+  })
+
+  it('never considers buying a plane at a Small-bank city, no matter how much cash is available', () => {
+    const state = makeState({
+      currentCity: 'farrow', // Small bank
+      cash: 100_000_000,
+      warehouses: { farrow: { floorsBuilt: CONFIG.warehouse.maxFloors, insured: false } },
+      hotels: { farrow: { tier: CONFIG.hotel.tiers.length - 1 } },
+    })
+    const result = maybeInvestInPhase2Assets(state)
+    expect(result).toBe(state) // warehouse/hotel maxed, plane unavailable here -> no candidates at all
+  })
+
+  it('takes at most ONE Phase 2 action per call, never stacking multiple purchases in one day', () => {
+    const state = makeState({ currentCity: 'farrow', cash: 100_000_000 })
+    const result = maybeInvestInPhase2Assets(state)
+    const boughtWarehouse = result.warehouses?.farrow?.floorsBuilt === 1
+    const boughtHotel = result.hotels?.farrow?.tier === 0
+    const boughtPlane = (result.planes?.length ?? 0) === 1
+    // Exactly one of the three candidates was actually purchased this call.
+    expect([boughtWarehouse, boughtHotel, boughtPlane].filter(Boolean)).toHaveLength(1)
+  })
+
+  it('is a no-op when currentCity does not resolve to a known City (defensive)', () => {
+    const state = makeState({ currentCity: 'nowhere' as GameState['currentCity'], cash: 100_000_000 })
+    expect(maybeInvestInPhase2Assets(state)).toBe(state)
   })
 })

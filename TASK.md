@@ -21,6 +21,8 @@ Phases 0–9 were each built with unit tests required as part of that task's acc
 
 The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-pass.md)): that task now explicitly includes writing and running the full deferred test suite for everything built in Phases 10–12, alongside the bot-harness re-run and balance re-tune. T068 is not checked off until that full pass is green. The exceptions that still require tests as originally specified are the structural checkpoints the design doc itself calls non-negotiable: T045 (locked v1 baseline) and T068 (final gate) — these are testing tasks by nature, not feature tasks with a testing tax bolted on.
 
+**Resolved (2026-07-27):** both gates are checked off — see [Phase 13](tasks/phase-13-final-balance-pass.md)'s T068 entry for the full file-by-file test list and harness diff.
+
 ## Phase index
 
 | Phase | Title | File | Status |
@@ -34,10 +36,10 @@ The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-p
 | 6 | Persistence | [tasks/phase-06-persistence.md](tasks/phase-06-persistence.md) | ✅ Complete (T032–T033) |
 | 7 | App Shell & State Wiring | [tasks/phase-07-app-shell-state-wiring.md](tasks/phase-07-app-shell-state-wiring.md) | ✅ Complete (T034–T035) |
 | 8 | UI Screens (1–8) | [tasks/phase-08-ui-screens.md](tasks/phase-08-ui-screens.md) | ✅ Complete (T036–T043, T069) |
-| 9 | Deploy Checkpoint (v1 Core Loop Ships) | [tasks/phase-09-deploy-checkpoint.md](tasks/phase-09-deploy-checkpoint.md) | 🟡 1 of 2 (T044 done, **T045 gate pending**) |
+| 9 | Deploy Checkpoint (v1 Core Loop Ships) | [tasks/phase-09-deploy-checkpoint.md](tasks/phase-09-deploy-checkpoint.md) | ✅ Complete (T044–T045) |
 | 10 | Phase 2: Warehouse Storage | [tasks/phase-10-warehouse-storage.md](tasks/phase-10-warehouse-storage.md) | ✅ Complete (T046–T052) |
 | 11 | Phase 2: Hotel Ownership | [tasks/phase-11-hotel-ownership.md](tasks/phase-11-hotel-ownership.md) | ✅ Complete (T053–T058) |
 | 12 | Phase 2: Aviation Leasing | [tasks/phase-12-aviation-leasing.md](tasks/phase-12-aviation-leasing.md) | ✅ Complete (T059–T066) |
-| 13 | Final Balance Pass (Phase 2 Included) | [tasks/phase-13-final-balance-pass.md](tasks/phase-13-final-balance-pass.md) | ⛔ Not started — contains the deferred full test pass (T068) |
+| 13 | Final Balance Pass (Phase 2 Included) | [tasks/phase-13-final-balance-pass.md](tasks/phase-13-final-balance-pass.md) | ✅ Complete (T067–T068) |
 
-**Next eligible task: T068** in [Phase 13](tasks/phase-13-final-balance-pass.md). Phases 10–12 were built ahead of the T045 gate per explicit user direction (see the Testing policy section above) — T045 itself remains unchecked in [Phase 9](tasks/phase-09-deploy-checkpoint.md) and, along with the full deferred test suite, must be reconciled as part of T068's final pass.
+**All phases complete.** T045's baseline (`baseline.v1.json`) and the full deferred test suite were both reconciled as part of T068's final pass — see [Phase 13](tasks/phase-13-final-balance-pass.md) for the harness diff, the deferred-test file list, and which constant was re-tuned (and why).

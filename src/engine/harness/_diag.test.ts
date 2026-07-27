@@ -8,7 +8,7 @@ describe('diag', () => {
     () => {
       const r = runHarness({ bot: greedyBotStep, seedsCount: 200, days: 100, checkpointDays: [10, 30, 90] })
       for (const day of [10, 30, 90]) {
-        console.log(`day=${day} median=${Math.round(r.checkpoints[day].median)}`)
+        console.log(`day=${day} median=${Math.round(r.checkpoints[day]!.median)}`)
       }
     },
     60_000,

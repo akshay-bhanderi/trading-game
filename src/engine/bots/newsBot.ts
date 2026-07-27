@@ -252,15 +252,39 @@ const TRAVEL_MARGIN_THRESHOLD = 1.1
 const LICENSE_AFFORDABILITY_MULTIPLE = 4
 
 /**
- * T067 ADDITION — see file header's "opportunistic Phase 2 investment"
- * section. Set well above `LICENSE_AFFORDABILITY_MULTIPLE` (4) because a
- * license is a small, cheap, permanent trading unlock, while a warehouse
- * floor/hotel tier/plane is a large capital outlay only 50% recoverable
- * (sell-back fraction, §14/§15) or subject to a liquidation fee + ongoing
- * depreciation (§16) — a bigger cash cushion ensures buying one never leaves
- * the bot unable to fund its next high-confidence rumor position.
+ * T067 ADDITION, T068 RE-TUNED (8 -> 20) — see file header's "opportunistic
+ * Phase 2 investment" section. Set well above `LICENSE_AFFORDABILITY_MULTIPLE`
+ * (4) because a license is a small, cheap, permanent trading unlock, while a
+ * warehouse floor/hotel tier/plane is a large capital outlay only 50%
+ * recoverable (sell-back fraction, §14/§15) or subject to a liquidation fee +
+ * ongoing depreciation (§16) — a bigger cash cushion ensures buying one never
+ * leaves the bot unable to fund its next high-confidence rumor position.
+ *
+ * T068 RE-TUNE NOTE: neither warehouse floors nor hotel tiers count toward
+ * `calcNetWorth` (netWorth.ts) as a structure/build-equity line item — only
+ * plane value does (§16's own explicit rule); a warehouse only helps net
+ * worth via goods actually stored in it (T048), and a hotel only helps via
+ * the cash its daily revenue generates over time (§15) — this is consistent
+ * with warehouse's OWN structure also being excluded, not a formula gap (see
+ * `calcPhase2AssetValue`'s doc comment in netWorth.ts). A hotel's payback
+ * period (cost / daily revenue) runs into the HUNDREDS of days — far longer
+ * than even a 90-day fiscal year — so it is a deliberately slow-burn,
+ * portfolio-diversification purchase, not a fast-money engine; a bot that
+ * commits real capital to one is intentionally choosing "diversify" over
+ * "keep compounding via trading" for that dollar. At the original T067 value
+ * (8x), this bot invested aggressively enough to pull the §11 day-90 target
+ * band clean out of range (median net worth ~$123k against a $200k-$400k
+ * target, full derivation in tasks/phase-13-final-balance-pass.md's T067
+ * entry) — not because anything was broken, but because 8x let it commit
+ * capital to a slow-payback asset far too early/often relative to how much
+ * faster pure trading compounds across a 90-day window. Raising the cushion
+ * to 20x (empirically verified via the §11 CI harness, 30-150 seeds x
+ * 100-360 days) restores day-10/30/90 medians to their target bands while
+ * `calcPhase2AssetValue` still shows meaningful, growing Phase 2 exposure by
+ * day 90 (~$100k+ median) — exactly acceptance criterion #3's "meaningfully
+ * move net worth without being a dominant no-brainer over pure trading".
  */
-const PHASE2_AFFORDABILITY_MULTIPLE = 8
+const PHASE2_AFFORDABILITY_MULTIPLE = 20
 
 // ---------------------------------------------------------------------------
 // Public API
