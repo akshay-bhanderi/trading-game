@@ -1105,3 +1105,40 @@ button.secondary {
 .confirm-actions button {
   flex: 1;
 }
+
+/* ---------------------------------------------------------------------
+   Update toast — a new service-worker build is waiting; higher z-index
+   than the confirm dialog so it's never hidden behind an open overlay.
+   --------------------------------------------------------------------- */
+
+.update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  clip-path: var(--pixel-clip);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
+}
+
+.update-toast button {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  clip-path: var(--pixel-clip);
+  padding: 4px 10px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: bold;
+}

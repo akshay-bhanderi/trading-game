@@ -11,3 +11,6 @@ dist-ssr
 # only the specific PNG frames we actually use are committed, under
 # public/assets/character/. See public/assets/character/LICENSE.txt.
 /assets-src/
+# ...except our own icon/OG sources, which scripts/generate-icons.mjs reads.
+!/assets-src/icon/
+!/assets-src/icon/**

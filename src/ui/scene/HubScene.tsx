@@ -10,14 +10,18 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { Container, Graphics, Text, type AnimatedSprite } from 'pixi.js'
+import { Container, Graphics, Text, type AnimatedSprite, type Ticker } from 'pixi.js'
 import PixiStage from './PixiStage'
-import { loadCharacterAnimation } from './character'
+import { loadCharacterAnimations, createCharacterSprite, createCharacterController } from './character'
 import type { CityId } from '../../engine/types'
 
 const STAGE_WIDTH = 360
 const STAGE_HEIGHT = 740
 const FLOOR_Y = 620
+/** Support posts sit ~10-24px from each wall (see `structure` below) — keep
+ * the character's wander range inside them so it never clips into a post. */
+const CHARACTER_MIN_X = 40
+const CHARACTER_MAX_X = STAGE_WIDTH - 40
 
 /** Placeholder per-city palette (wall, floor) — real per-city background
  * art is a later pass per §12. Keyed by city id so the room re-tints
@@ -172,19 +176,25 @@ export default function HubScene({ cityId, cityName }: HubSceneProps) {
         cityNameTextRef.current = cityNameText
 
         let sprite: AnimatedSprite | null = null
-        loadCharacterAnimation('/assets/character/trader-idle.png').then((s) => {
-          if (disposed) {
-            s.destroy()
-            return
-          }
-          sprite = s
+        let tickerHandler: ((ticker: Ticker) => void) | null = null
+        loadCharacterAnimations('/assets/character').then((animations) => {
+          if (disposed) return
+          sprite = createCharacterSprite(animations)
           sprite.scale.set(1.1)
           sprite.position.set(STAGE_WIDTH / 2, FLOOR_Y + 6)
           root.addChild(sprite)
+
+          const controller = createCharacterController(sprite, animations, {
+            minX: CHARACTER_MIN_X,
+            maxX: CHARACTER_MAX_X,
+          })
+          tickerHandler = controller.update
+          app.ticker.add(tickerHandler)
         })
 
         return () => {
           disposed = true
+          if (tickerHandler) app.ticker.remove(tickerHandler)
           sprite?.destroy()
           root.destroy({ children: true })
           wallRef.current = null

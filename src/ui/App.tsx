@@ -17,6 +17,7 @@ import Hud, { type PopupKind } from './components/Hud'
 import PopupLayer from './components/PopupLayer'
 import DayTransition from './components/DayTransition'
 import ConfirmDialog from './components/ConfirmDialog'
+import UpdateToast from './components/UpdateToast'
 import { CITIES } from '../engine/data/cities'
 import { cargoUsed } from '../engine/cargo'
 import { isHotelOwnedByPlayer } from '../engine/hotel'
@@ -97,6 +98,7 @@ function App() {
     return (
       <div className="app-frame">
         <TitleScreen />
+        <UpdateToast />
       </div>
     )
   }
@@ -109,6 +111,7 @@ function App() {
     return (
       <div className="app-frame">
         <GameOverScreen />
+        <UpdateToast />
       </div>
     )
   }
@@ -212,6 +215,7 @@ function App() {
           <YearEndScreen record={pendingYearEnd} onDismiss={() => setAcknowledgedYearEnd((n) => n + 1)} />
         </PopupLayer>
       )}
+      <UpdateToast />
     </div>
   )
 }
