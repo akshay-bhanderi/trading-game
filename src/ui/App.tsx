@@ -21,6 +21,7 @@ import UpdateToast from './components/UpdateToast'
 import { CITIES } from '../engine/data/cities'
 import { cargoUsed } from '../engine/cargo'
 import { isHotelOwnedByPlayer } from '../engine/hotel'
+import { useBackgroundMusic } from './audio/useBackgroundMusic'
 
 function cityName(cityId: string): string {
   return CITIES.find((c) => c.id === cityId)?.name ?? cityId
@@ -94,6 +95,33 @@ function App() {
     wasGameNullRef.current = !game
   }, [game])
 
+  // Automatic overlays take priority over whatever the player manually
+  // opened, in this order: an outstanding default decision (the bank
+  // literally will not let the player ignore it) beats an unshown year-end
+  // statement, which beats the player's own popup choice. Both automatic
+  // cases are pure derivations of `game`/`acknowledgedYearEnd` — recomputed
+  // every render, not tracked via a separate "is this open" flag — so
+  // dismissing one correctly reveals whichever is next without any extra
+  // coordination code. Computed here (above the early returns below) so it
+  // doubles as the single source of truth `useBackgroundMusic` reads to pick
+  // gameplay vs. menu music (T072) — see that hook's own doc comment.
+  const pendingYearEnd =
+    game && game.taxHistory.length > acknowledgedYearEnd ? game.taxHistory[acknowledgedYearEnd] : undefined
+  const effectivePopup: PopupKind | 'yearend' | null = game
+    ? game.awaitingDefaultDecision
+      ? 'bank'
+      : pendingYearEnd
+        ? 'yearend'
+        : popup
+    : null
+
+  // No game yet (Title screen), the run just ended (Game Over takeover), or
+  // any popup/automatic-overlay is covering the hub scene — all read as
+  // "menu" music; only the bare hub scene (actively trading/traveling) gets
+  // the gameplay loop. See tasks/phase-15-background-music.md's T072 trigger
+  // mapping, including why no separate "paused" case is needed.
+  useBackgroundMusic(!game || game.gameOver || effectivePopup !== null ? 'menu' : 'gameplay')
+
   if (!game) {
     return (
       <div className="app-frame">
@@ -118,18 +146,6 @@ function App() {
 
   const city = CITIES.find((c) => c.id === game.currentCity)
   const ownedGoodCount = Object.values(game.cargo).filter((holding) => holding.qty > 0).length
-
-  // Automatic overlays take priority over whatever the player manually
-  // opened, in this order: an outstanding default decision (the bank
-  // literally will not let the player ignore it) beats an unshown year-end
-  // statement, which beats the player's own popup choice. Both automatic
-  // cases are pure derivations of `game`/`acknowledgedYearEnd` — recomputed
-  // every render, not tracked via a separate "is this open" flag — so
-  // dismissing one correctly reveals whichever is next without any extra
-  // coordination code.
-  const pendingYearEnd =
-    game.taxHistory.length > acknowledgedYearEnd ? game.taxHistory[acknowledgedYearEnd] : undefined
-  const effectivePopup: PopupKind | 'yearend' = game.awaitingDefaultDecision ? 'bank' : pendingYearEnd ? 'yearend' : popup
 
   return (
     <div className="app-frame app-frame--scene">

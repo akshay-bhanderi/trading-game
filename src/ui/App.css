@@ -893,6 +893,11 @@ button.secondary {
   font-family: var(--font-body);
 }
 
+.row input[type='range'] {
+  flex: 1;
+  max-width: 140px;
+}
+
 .card {
   background: var(--paper);
   border: 3px solid var(--ink);

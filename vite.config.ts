@@ -28,6 +28,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Per-city background scenes (Phase 14, T070 — not yet wired into
+        // any screen) are multi-MB each; precaching all of them at install
+        // time would bloat the PWA install and one (15-day.png) already
+        // exceeds Workbox's default 2MB single-file precache limit. Load
+        // them on demand instead — excluded here, not raising the limit.
+        globIgnores: ['**/assets/backgrounds/**'],
         cleanupOutdatedCaches: true,
       },
     }),
