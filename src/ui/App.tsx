@@ -149,7 +149,11 @@ function App() {
 
   return (
     <div className="app-frame app-frame--scene">
-      <HubScene cityId={game.currentCity} cityName={city?.name ?? game.currentCity} />
+      <HubScene
+        cityId={game.currentCity}
+        cityName={city?.name ?? game.currentCity}
+        isNight={game.currentCityIsNight ?? false}
+      />
       <Hud
         day={game.day}
         cash={game.cash}

@@ -14,6 +14,7 @@ import { CONFIG } from './config'
 import { CITIES } from './data/cities'
 import { GOODS } from './data/goods'
 import { advanceDay } from './turnLoop'
+import { createCityNightRng, rollIsNight } from './cityBackground'
 import type { Difficulty, GameState } from './types'
 
 /**
@@ -68,6 +69,9 @@ export function createNewGame(difficulty: Difficulty, seed: number): GameState {
     planes: [],
     planeMaintenanceOwedThisFiscalYear: 0,
     armedPersonalUsePlaneId: null,
+    // T070: the very first city (no travel yet) rolls a flat 50/50 — see
+    // tasks/phase-14-city-background-scenes.md's day/night design note.
+    currentCityIsNight: rollIsNight(createCityNightRng(seed, 'start'), 0.5),
   }
 
   return advanceDay(rawState)

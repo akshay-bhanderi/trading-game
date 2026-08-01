@@ -34,24 +34,6 @@ function Icon({
   )
 }
 
-export function SkylineIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
-  return (
-    <Icon size={size} className={className}>
-      <rect x={1} y={9} width={4} height={6} fill="currentColor" />
-      <rect x={6} y={5} width={4} height={10} fill="currentColor" />
-      <rect x={11} y={8} width={4} height={7} fill="currentColor" />
-      <rect x={0} y={15} width={16} height={1} fill="currentColor" />
-      <rect x={2} y={10} width={1} height={1} fill={accent} />
-      <rect x={3} y={12} width={1} height={1} fill={accent} />
-      <rect x={7} y={7} width={1} height={1} fill={accent} />
-      <rect x={7} y={10} width={1} height={1} fill={accent} />
-      <rect x={8} y={12} width={1} height={1} fill={accent} />
-      <rect x={12} y={10} width={1} height={1} fill={accent} />
-      <rect x={12} y={12} width={1} height={1} fill={accent} />
-    </Icon>
-  )
-}
-
 export function CoinIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
   return (
     <Icon size={size} className={className}>
@@ -76,34 +58,6 @@ export function CargoIcon({ size = 16, accent = DEFAULT_ACCENT, className }: Ico
   )
 }
 
-export function CompassIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
-  return (
-    <Icon size={size} className={className}>
-      <rect x={7} y={2} width={2} height={1} fill={accent} />
-      <rect x={6} y={3} width={4} height={1} fill={accent} />
-      <rect x={7} y={4} width={2} height={2} fill={accent} />
-      <rect x={6} y={9} width={4} height={1} fill="currentColor" />
-      <rect x={4} y={10} width={8} height={1} fill="currentColor" />
-      <rect x={3} y={11} width={10} height={2} fill="currentColor" />
-      <rect x={4} y={13} width={8} height={1} fill="currentColor" />
-      <rect x={6} y={14} width={4} height={1} fill="currentColor" />
-    </Icon>
-  )
-}
-
-export function BedIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
-  return (
-    <Icon size={size} className={className}>
-      <rect x={2} y={5} width={2} height={8} fill="currentColor" />
-      <rect x={2} y={12} width={12} height={1} fill="currentColor" />
-      <rect x={2} y={9} width={12} height={3} fill="currentColor" />
-      <rect x={3} y={9} width={3} height={2} fill={accent} />
-      <rect x={2} y={13} width={1} height={2} fill="currentColor" />
-      <rect x={13} y={13} width={1} height={2} fill="currentColor" />
-    </Icon>
-  )
-}
-
 export function LedgerIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
   return (
     <Icon size={size} className={className}>
@@ -116,27 +70,8 @@ export function LedgerIcon({ size = 16, accent = DEFAULT_ACCENT, className }: Ic
   )
 }
 
-/** Classical bank building — pediment roof + columns + base steps. Replaces
- * `LedgerIcon` as the HUD's Bank button (an account-book reads more like a
- * "records" icon than "a bank"); kept distinct rather than editing
- * `LedgerIcon` in place since a ledger/account-book icon may still be useful
- * elsewhere later. */
-export function BankIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
-  return (
-    <Icon size={size} className={className}>
-      <rect x={1} y={1} width={14} height={2} fill="currentColor" />
-      <rect x={2} y={3} width={12} height={1} fill={accent} />
-      <rect x={2} y={5} width={2} height={7} fill="currentColor" />
-      <rect x={7} y={5} width={2} height={7} fill="currentColor" />
-      <rect x={12} y={5} width={2} height={7} fill="currentColor" />
-      <rect x={1} y={12} width={14} height={2} fill={accent} />
-      <rect x={0} y={14} width={16} height={2} fill="currentColor" />
-    </Icon>
-  )
-}
-
 /** Hotel building — canopy/awning over the entrance, window grid, door.
- * Distinct silhouette from `SkylineIcon` (Warehouse) despite both being
+ * Distinct silhouette from the old Warehouse icon despite both being
  * "buildings" — the awning + door read as hospitality rather than storage. */
 export function HotelIcon({ size = 16, accent = DEFAULT_ACCENT, className }: IconProps) {
   return (
@@ -148,18 +83,6 @@ export function HotelIcon({ size = 16, accent = DEFAULT_ACCENT, className }: Ico
       <rect x={4} y={9} width={2} height={2} fill={accent} />
       <rect x={9} y={9} width={3} height={5} fill={accent} />
       <rect x={0} y={14} width={16} height={1} fill="currentColor" />
-    </Icon>
-  )
-}
-
-/** Hamburger menu glyph — opens the pause/settings menu (Backup, Sound,
- * Music, New Game, Exit). Plain three-bar mark, no `accent` needed. */
-export function MenuIcon({ size = 16, className }: IconProps) {
-  return (
-    <Icon size={size} className={className}>
-      <rect x={2} y={3} width={12} height={2} fill="currentColor" />
-      <rect x={2} y={7} width={12} height={2} fill="currentColor" />
-      <rect x={2} y={11} width={12} height={2} fill="currentColor" />
     </Icon>
   )
 }

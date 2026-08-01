@@ -2,11 +2,13 @@
 
 [← Back to index](../TASK.md)
 
-Status: **Not started.**
+Status: **✅ Complete (T071–T072).**
 
-> The design doc's v1 scope fence (§13) explicitly lists sound/music as OUT of v1 scope. This phase adds it anyway as user-directed post-v1 work — the same "later pass, not in the original build order" category as [Phase 14](phase-14-city-background-scenes.md). Two tracks have been chosen and copied into the repo; this phase wires them up as a two-track system that switches based on what the player is looking at, not just a single always-on loop.
+> The design doc's v1 scope fence (§13) explicitly lists sound/music as OUT of v1 scope. This phase adds it anyway as user-directed post-v1 work — the same "later pass, not in the original build order" category as [Phase 14](phase-14-city-background-scenes.md). Two tracks were chosen and copied into the repo; this phase wired them up as a two-track system that switches based on what the player is looking at, not just a single always-on loop.
+>
+> **Resolved (2026-08-01):** built as `src/ui/audio/backgroundMusic.ts` (module-scope singleton engine — two `HTMLAudioElement`s, rAF crossfade, gesture-gated priming) + `src/ui/audio/useBackgroundMusic.ts` (thin hook called once at the top of `App.tsx`, above the `!game`/`gameOver` early returns, driving the track off the same `effectivePopup` derivation those returns already compute). Manually verified in-browser: menu track on Title/Continue, crossfade to menu track on popup open, gameplay track on the bare hub, mute toggle silences immediately, and a `musicVolume` slider (0–1, `settingsStore.ts`) was added beyond the original scope per user follow-up request — On/Off and volume are independent multipliers so muting doesn't reset the chosen level. `MenuScreen.tsx`'s stale "audio isn't wired up yet" copy was corrected; the sound-effects toggle still is (no SFX engine exists). Also fixed in passing: `vite.config.ts`'s PWA `workbox.globIgnores` now excludes `assets/backgrounds/**` — Phase 14's background images (unrelated to this task) were breaking `npm run build` by exceeding Workbox's precache size limit.
 
-- [ ] **T071 — Loop the chosen background track during gameplay, with a mute/volume control**
+- [x] **T071 — Loop the chosen background track during gameplay, with a mute/volume control**
   - Doc references: §13 (sound/music called OUT of v1 — this task is the exception), §12 (HUD — the mute control belongs here, alongside the other persistent HUD icons)
   - Dependencies: T037 (persistent hub scene must exist to attach playback to)
   - File path hints:
@@ -19,7 +21,7 @@ Status: **Not started.**
   - Acceptance criteria: track loops seamlessly (no audible gap/click at the loop point) during gameplay; a HUD-accessible mute toggle silences it immediately and the muted state survives a reload; music does not restart/stutter on travel, popup open/close, or other in-scene re-renders.
   - Mobile/desktop note: verify the autoplay-after-gesture behavior specifically on mobile Safari/Chrome (§1's mobile-portrait-first target) — these are the strictest autoplay policies and the easiest to get wrong.
 
-- [ ] **T072 — Second track for title/menu/paused contexts, with track-switching between it and T071's gameplay loop**
+- [x] **T072 — Second track for title/menu/paused contexts, with track-switching between it and T071's gameplay loop**
   - Doc references: §13 (same exception as T071), §12 (screen 1 Title screen; the popup panels — Market/Bank/Newspaper/Travel/Year-end — that overlay the persistent hub scene)
   - Dependencies: T071 (reuses its audio wrapper/mute infrastructure rather than duplicating it — this is a second track + a switcher, not a second independent player)
   - File path hints:

@@ -41,11 +41,15 @@ The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-p
 | 11 | Phase 2: Hotel Ownership | [tasks/phase-11-hotel-ownership.md](tasks/phase-11-hotel-ownership.md) | ✅ Complete (T053–T058) |
 | 12 | Phase 2: Aviation Leasing | [tasks/phase-12-aviation-leasing.md](tasks/phase-12-aviation-leasing.md) | ✅ Complete (T059–T066) |
 | 13 | Final Balance Pass (Phase 2 Included) | [tasks/phase-13-final-balance-pass.md](tasks/phase-13-final-balance-pass.md) | ✅ Complete (T067–T068) |
-| 14 | Per-City Day/Night Background Scenes | [tasks/phase-14-city-background-scenes.md](tasks/phase-14-city-background-scenes.md) | 🚧 Not started (T070) |
-| 15 | Background Music | [tasks/phase-15-background-music.md](tasks/phase-15-background-music.md) | 🚧 Not started (T071–T072) |
+| 14 | Per-City Day/Night Background Scenes | [tasks/phase-14-city-background-scenes.md](tasks/phase-14-city-background-scenes.md) | ✅ Complete (T070) |
+| 15 | Background Music | [tasks/phase-15-background-music.md](tasks/phase-15-background-music.md) | ✅ Complete (T071–T072) |
+| 16 | New Character Sprite + Real Walk Animation | [tasks/phase-16-character-walk-sprite.md](tasks/phase-16-character-walk-sprite.md) | ✅ Complete (T073) |
+| 17 | HUD Buttons: Icons → Text Labels | [tasks/phase-17-hud-text-buttons.md](tasks/phase-17-hud-text-buttons.md) | ✅ Complete (T074) |
 
 **Phases 0–13 complete.** T045's baseline (`baseline.v1.json`) and the full deferred test suite were both reconciled as part of T068's final pass — see [Phase 13](tasks/phase-13-final-balance-pass.md) for the harness diff, the deferred-test file list, and which constant was re-tuned (and why).
 
-**Phases 14–15** are new, unstarted work outside the original design-doc build order:
-- [Phase 14](tasks/phase-14-city-background-scenes.md) wires the real per-city day/night background art the user supplied into `HubScene`, in place of its flat-color placeholder.
+**Phases 14–17** are new, unstarted-or-in-progress work outside the original design-doc build order:
+- [Phase 14](tasks/phase-14-city-background-scenes.md) — done — wires the real per-city day/night background art the user supplied into `HubScene`, in place of its flat-color placeholder.
 - [Phase 15](tasks/phase-15-background-music.md) loops a chosen background track during gameplay — §13 lists sound/music as OUT of v1 scope, so this is a deliberate exception, not an oversight.
+- [Phase 16](tasks/phase-16-character-walk-sprite.md) replaces the hub-scene character with user-supplied walk/idle art and fixes the "walk" state so it plays a real walk cycle instead of translating the idle pose (the current CraftPix pack has no walk sheet — see `character.ts`'s header comment).
+- [Phase 17](tasks/phase-17-hud-text-buttons.md) swaps the bottom-bar and menu-button icons in `Hud.tsx` for text labels, per user request (top wallet chip and "Buy hotel here" chip icons stay as-is — out of scope).

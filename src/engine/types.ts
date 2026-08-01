@@ -870,4 +870,17 @@ export interface GameState {
    * `null` = no bonus currently armed.
    */
   armedPersonalUsePlaneId?: PlaneId | null
+
+  /**
+   * T070 (Phase 14, §12 background-art placeholder replaced) — whether
+   * `HubScene`'s background art for `currentCity` should render its night
+   * variant. Rolled once per arrival (see `actions/travel.ts`'s
+   * `advanceTravelDay` and `newGame.ts`) via `cityBackground.ts`'s seeded
+   * `rollIsNight`, and persisted here rather than re-rolled per render, so
+   * it stays stable across re-renders/popup toggles/reload — see
+   * cityBackground.ts's file header for why this cosmetic-only field still
+   * draws from the run's seeded RNG. `undefined` (old saves predating this
+   * field) reads as day — see App.tsx's `?? false` read site.
+   */
+  currentCityIsNight?: boolean
 }

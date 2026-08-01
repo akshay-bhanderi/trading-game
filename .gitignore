@@ -7,9 +7,11 @@ dist-ssr
 !.vscode/extensions.json
 .DS_Store
 
-# Raw itch.io asset download (PSDs, coupon art, unused trader variants) —
-# only the specific PNG frames we actually use are committed, under
-# public/assets/character/. See public/assets/character/LICENSE.txt.
+# Raw asset source downloads (PSDs, unused variants) — only the specific
+# PNG frames actually used are committed, under public/assets/character/.
+# (T073: the character pack is now user-supplied art with no license/
+# attribution file in the repo — the old CraftPix LICENSE.txt this comment
+# used to point to was removed along with that pack.)
 /assets-src/
 # ...except our own icon/OG sources, which scripts/generate-icons.mjs reads.
 !/assets-src/icon/

@@ -4,15 +4,19 @@
  * single starting room only; room-growth-as-the-building-grows (§12) is an
  * explicit open design question there, not implemented here.
  *
- * Background/room art is a placeholder pass (flat per-city color fields,
- * §12 "Background/room art: not yet sourced") — only the character sprite
- * is real licensed art (public/assets/character/, T069).
+ * Background art (T070, Phase 14): real per-city day/night pixel skylines,
+ * replacing the old flat per-city color placeholder (§12 "Background/room
+ * art: not yet sourced" — that placeholder is now this task). The flat
+ * `CITY_PALETTE` wall/floor fill is KEPT, not deleted — it's the
+ * loading-state fallback shown until the mapped image resolves, per T070's
+ * acceptance criteria. See `cityBackgrounds.ts` for the city→scene mapping.
  */
 
 import { useEffect, useRef } from 'react'
-import { Container, Graphics, Text, type AnimatedSprite, type Ticker } from 'pixi.js'
+import { Assets, Container, Graphics, Sprite, Text, Texture, type AnimatedSprite, type Ticker } from 'pixi.js'
 import PixiStage from './PixiStage'
 import { loadCharacterAnimations, createCharacterSprite, createCharacterController } from './character'
+import { backgroundUrl } from './cityBackgrounds'
 import type { CityId } from '../../engine/types'
 
 const STAGE_WIDTH = 360
@@ -44,12 +48,51 @@ interface HubSceneProps {
    * as a prop rather than derived from `cityId` here so this file doesn't
    * need its own `CITIES` lookup — App.tsx already has the resolved name. */
   cityName: string
+  /** T070 — which of the mapped city's two scene images to show. Rolled once
+   * per arrival by the engine (see `GameState.currentCityIsNight`'s doc
+   * comment) and passed straight through; App.tsx defaults an old save's
+   * missing field to `false` (day) before it ever reaches here. */
+  isNight: boolean
 }
 
-export default function HubScene({ cityId, cityName }: HubSceneProps) {
+/** Scales `sprite` (already holding `tex`) to "cover" a `width`×`height`
+ * region anchored at (0,0) — fills the region with no letterboxing,
+ * center-cropping whichever axis overflows. Used for the background image,
+ * which is a wide landscape skyline being fit into the scene's much taller
+ * portrait wall area. */
+function applyCoverFit(sprite: Sprite, tex: Texture, width: number, height: number): void {
+  const scale = Math.max(width / tex.width, height / tex.height)
+  sprite.width = tex.width * scale
+  sprite.height = tex.height * scale
+  sprite.position.set((width - sprite.width) / 2, (height - sprite.height) / 2)
+}
+
+export default function HubScene({ cityId, cityName, isNight }: HubSceneProps) {
   const wallRef = useRef<Graphics | null>(null)
   const floorRef = useRef<Graphics | null>(null)
   const cityNameTextRef = useRef<Text | null>(null)
+  const backgroundSpriteRef = useRef<Sprite | null>(null)
+  // Guards against a slow-resolving load from an earlier city/isNight
+  // overwriting a faster-resolving later one (e.g. rapid travel) — only the
+  // most recently STARTED load is allowed to apply its texture.
+  const loadRequestIdRef = useRef(0)
+
+  // Shared by the initial paint (inside `onReady`, below) and every later
+  // city/isNight change (the effect right after this) — a single load path
+  // so the requestId race-guard actually protects against BOTH sources
+  // racing each other, not just effect-vs-effect.
+  function startBackgroundLoad(forCityId: CityId, forIsNight: boolean): void {
+    const requestId = ++loadRequestIdRef.current
+    const url = backgroundUrl(import.meta.env.BASE_URL, forCityId, forIsNight)
+    Assets.load<Texture>(url).then((tex) => {
+      if (requestId !== loadRequestIdRef.current) return // superseded — discard
+      const sprite = backgroundSpriteRef.current
+      if (!sprite) return // scene torn down before this resolved
+      tex.source.scaleMode = 'nearest'
+      sprite.texture = tex
+      applyCoverFit(sprite, tex, STAGE_WIDTH, FLOOR_Y)
+    })
+  }
 
   useEffect(() => {
     const palette = CITY_PALETTE[cityId]
@@ -62,7 +105,13 @@ export default function HubScene({ cityId, cityName }: HubSceneProps) {
     if (cityNameTextRef.current) {
       cityNameTextRef.current.text = cityName
     }
-  }, [cityId, cityName])
+    // No-op on the very first render (before `onReady` has created the
+    // sprite — see `startBackgroundLoad`'s own null-sprite guard); the
+    // initial paint is instead kicked off from inside `onReady` itself,
+    // same pattern this file already uses for wall/floor/cityNameText.
+    startBackgroundLoad(cityId, isNight)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityId, cityName, isNight])
 
   return (
     <PixiStage
@@ -82,6 +131,15 @@ export default function HubScene({ cityId, cityName }: HubSceneProps) {
         root.addChild(floor)
         wallRef.current = wall
         floorRef.current = floor
+
+        // T070: real background art, layered above the flat palette fill
+        // above (which stays visible underneath until this resolves — the
+        // loading-state fallback). Starts as an empty texture (invisible)
+        // until `startBackgroundLoad` below fills it in.
+        const background = new Sprite(Texture.EMPTY)
+        root.addChild(background)
+        backgroundSpriteRef.current = background
+        startBackgroundLoad(cityId, isNight)
 
         // Single-floor building cutaway dressing (T037 follow-up — the flat
         // wall/floor fills above read as an empty color field with nothing
@@ -180,7 +238,11 @@ export default function HubScene({ cityId, cityName }: HubSceneProps) {
         loadCharacterAnimations(`${import.meta.env.BASE_URL}assets/character`).then((animations) => {
           if (disposed) return
           sprite = createCharacterSprite(animations)
-          sprite.scale.set(1.1)
+          // New character art (T073) is a 170px-tall portrait sheet, not the
+          // old 128x128 CraftPix square frame — 0.65 keeps the on-screen
+          // character proportioned against the room's other fixed-size
+          // props (e.g. the 64px wall window) rather than towering over them.
+          sprite.scale.set(0.65)
           sprite.position.set(STAGE_WIDTH / 2, FLOOR_Y + 6)
           root.addChild(sprite)
 
@@ -199,6 +261,7 @@ export default function HubScene({ cityId, cityName }: HubSceneProps) {
           root.destroy({ children: true })
           wallRef.current = null
           floorRef.current = null
+          backgroundSpriteRef.current = null
           cityNameTextRef.current = null
         }
       }}

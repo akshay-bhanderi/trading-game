@@ -157,10 +157,8 @@ body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
-  min-height: 32px;
-  min-width: 32px;
-  width: 32px;
-  padding: 0;
+  min-height: 28px;
+  padding: 4px 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -169,14 +167,17 @@ body {
   border: 2px solid var(--paper);
   clip-path: var(--pixel-clip);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: bold;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .hud-icon-btn {
   pointer-events: auto;
-  min-height: 48px;
-  min-width: 48px;
-  width: 48px;
-  padding: 0;
+  min-height: 34px;
+  padding: 7px 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,10 +185,11 @@ body {
   border: 3px solid var(--ink);
   clip-path: var(--pixel-clip);
   box-shadow: 3px 3px 0 var(--ink);
-}
-
-.hud-icon-glyph {
-  font-size: 18px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--ink);
+  white-space: nowrap;
   line-height: 1;
 }
 

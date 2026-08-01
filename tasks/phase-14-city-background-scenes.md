@@ -2,11 +2,13 @@
 
 [← Back to index](../TASK.md)
 
-Status: **Not started.**
+Status: **✅ Complete (T070).**
 
 > Not part of the original design doc's numbered build order (§17) — this phase is the "Background/room art: not yet sourced... later pass" placeholder flagged in §12 finally getting sourced. 16 numbered pixel-art city-skyline scenes (day + night pair each) were supplied by the user and copied into `public/assets/backgrounds/city/` (`{n}-day.{jpg,png}` / `{n}-night.{png,jpg}`, n = 1–16). This phase wires them into `HubScene`, replacing its flat `CITY_PALETTE` color-field placeholder (see that file's header comment, T037/T069).
+>
+> **Resolved (2026-08-01):** built as `src/ui/scene/cityBackgrounds.ts` (the city→scene URL mapping below) + a `Sprite`/`Assets.load` layer added to `HubScene.tsx`, cover-fit scaled into the wall region, layered above the existing flat `CITY_PALETTE` fill (kept as the loading-state fallback, not deleted) with a request-id guard against out-of-order resolution on rapid travel. The day/night roll itself lives in the engine — new `src/engine/cityBackground.ts` (`nightProbabilityForTravelDays` + a seeded `createCityNightRng`/`rollIsNight`, unit-tested in `cityBackground.test.ts`, 6 tests) — called from `newGame.ts` (flat 50/50 for the starting city) and `actions/travel.ts`'s `advanceTravelDay` arrival branch (weighted by the completed trip's `totalDays`), writing the new optional `GameState.currentCityIsNight` field. `App.tsx` reads it as `game.currentCityIsNight ?? false` when passing it to `HubScene`. Manually verified in-browser across day/night and a real Travel arrival (Farrow → Saltmere); `npx tsc --noEmit`, the engine test suite, and `npx vite build` all pass. Fixed in passing (unrelated to this task but discovered while building it): `vite.config.ts`'s PWA `workbox.globIgnores` now excludes `assets/backgrounds/**` — these multi-MB images were breaking `npm run build` by exceeding Workbox's precache size limit.
 
-- [ ] **T070 — Real per-city day/night background art in HubScene, randomized on arrival**
+- [x] **T070 — Real per-city day/night background art in HubScene, randomized on arrival**
   - Doc references: §12 (screen 2, hub scene background-art placeholder note), §4 (travel days — used for the night-weighting below), §6 ("Deterministic seeded RNG per run... so bugs are reproducible" — the day/night pick must honor this same rule)
   - Dependencies: T037, T069
   - File path hints:

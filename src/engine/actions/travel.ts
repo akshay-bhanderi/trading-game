@@ -148,6 +148,7 @@ import type { GameState } from '../types'
 import { calcFare, getTravelDays } from '../travel'
 import { cargoUsed } from '../cargo'
 import { advanceDay } from '../turnLoop'
+import { createCityNightRng, nightProbabilityForTravelDays, rollIsNight } from '../cityBackground'
 
 /**
  * Starts a trip from `state.currentCity` to `destinationCityId`.
@@ -263,10 +264,20 @@ export function advanceTravelDay(state: GameState): GameState {
     // Arrival — transition currentCity/travelInProgress FIRST, then hand off
     // to advanceDay (T015) so its "present city" price refresh sees the
     // destination as already arrived-at (see file header ordering note).
+    //
+    // T070: also roll this arrival's day/night background (cosmetic only —
+    // see cityBackground.ts's file header), weighted by the trip's total
+    // length. Rolled from `state.day` (the day BEFORE advanceDay bumps it)
+    // as the RNG key, matching turnLoop.ts's own per-day-RNG convention —
+    // every arrival lands on a distinct, reproducible draw.
     const arrived: GameState = {
       ...state,
       currentCity: trip.destinationCityId,
       travelInProgress: null,
+      currentCityIsNight: rollIsNight(
+        createCityNightRng(state.seed, `day:${state.day}`),
+        nightProbabilityForTravelDays(trip.totalDays),
+      ),
     }
     return advanceDay(arrived)
   }

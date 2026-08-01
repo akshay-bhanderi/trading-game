@@ -52,9 +52,22 @@
  *     🏨 emoji — a building with columns/pediment and a building with an
  *     awning/door read more clearly as "bank" and "hotel" than a ledger book
  *     or a generic emoji.
+ *
+ * ---------------------------------------------------------------------------
+ * T074 (Phase 17): bottom-bar + menu-button icons → text labels
+ * ---------------------------------------------------------------------------
+ *   - The 8 `.hud-bottom` buttons (Bank/Newspaper/Stay/Travel/Market/
+ *     Warehouse/Real Estate/Aviation) and `.hud-menu-btn` now render their
+ *     `aria-label` string as visible text instead of an icon glyph/emoji —
+ *     user-directed change, see tasks/phase-17-hud-text-buttons.md. This
+ *     orphaned `BankIcon`/`CompassIcon`/`SkylineIcon`/`BedIcon`/`MenuIcon`
+ *     (no other call site referenced them), so they were removed from
+ *     PixelIcons.tsx; `CoinIcon`/`CargoIcon`/`HotelIcon` stay imported here
+ *     since the top-right wallet chip and the "Buy hotel here" chip (both
+ *     explicitly out of scope for T074) still use them.
  */
 
-import { BankIcon, BedIcon, CargoIcon, CoinIcon, CompassIcon, HotelIcon, MenuIcon, SkylineIcon } from './PixelIcons'
+import { CargoIcon, CoinIcon, HotelIcon } from './PixelIcons'
 
 export type PopupKind =
   | 'market'
@@ -102,7 +115,7 @@ export default function Hud({
   return (
     <div className="hud">
       <button className="hud-menu-btn" onClick={() => onOpen('menu')} aria-label="Menu">
-        <MenuIcon size={16} />
+        Menu
       </button>
 
       {/* `.hud-top-group` wraps the top chips + the conditional buy-hotel
@@ -138,28 +151,28 @@ export default function Hud({
 
       <div className="hud-bottom">
         <button className="hud-icon-btn" onClick={() => onOpen('bank')} aria-label="Bank">
-          <BankIcon size={20} />
+          Bank
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('newspaper')} aria-label="Newspaper">
-          <span className="hud-icon-glyph">📰</span>
+          Newspaper
         </button>
         <button className="hud-icon-btn" onClick={onStayRequest} aria-label="Stay">
-          <BedIcon size={20} />
+          Stay
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('travel')} aria-label="Travel">
-          <CompassIcon size={20} />
+          Travel
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('market')} aria-label="Market">
-          <CoinIcon size={20} />
+          Market
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('warehouse')} aria-label="Warehouse">
-          <SkylineIcon size={20} />
+          Warehouse
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('realestate')} aria-label="Real Estate">
-          <HotelIcon size={20} />
+          Real Estate
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('aviation')} aria-label="Aviation">
-          <span className="hud-icon-glyph">✈️</span>
+          Aviation
         </button>
       </div>
 
