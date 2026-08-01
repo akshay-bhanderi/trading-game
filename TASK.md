@@ -41,5 +41,11 @@ The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-p
 | 11 | Phase 2: Hotel Ownership | [tasks/phase-11-hotel-ownership.md](tasks/phase-11-hotel-ownership.md) | ✅ Complete (T053–T058) |
 | 12 | Phase 2: Aviation Leasing | [tasks/phase-12-aviation-leasing.md](tasks/phase-12-aviation-leasing.md) | ✅ Complete (T059–T066) |
 | 13 | Final Balance Pass (Phase 2 Included) | [tasks/phase-13-final-balance-pass.md](tasks/phase-13-final-balance-pass.md) | ✅ Complete (T067–T068) |
+| 14 | Per-City Day/Night Background Scenes | [tasks/phase-14-city-background-scenes.md](tasks/phase-14-city-background-scenes.md) | 🚧 Not started (T070) |
+| 15 | Background Music | [tasks/phase-15-background-music.md](tasks/phase-15-background-music.md) | 🚧 Not started (T071–T072) |
 
-**All phases complete.** T045's baseline (`baseline.v1.json`) and the full deferred test suite were both reconciled as part of T068's final pass — see [Phase 13](tasks/phase-13-final-balance-pass.md) for the harness diff, the deferred-test file list, and which constant was re-tuned (and why).
+**Phases 0–13 complete.** T045's baseline (`baseline.v1.json`) and the full deferred test suite were both reconciled as part of T068's final pass — see [Phase 13](tasks/phase-13-final-balance-pass.md) for the harness diff, the deferred-test file list, and which constant was re-tuned (and why).
+
+**Phases 14–15** are new, unstarted work outside the original design-doc build order:
+- [Phase 14](tasks/phase-14-city-background-scenes.md) wires the real per-city day/night background art the user supplied into `HubScene`, in place of its flat-color placeholder.
+- [Phase 15](tasks/phase-15-background-music.md) loops a chosen background track during gameplay — §13 lists sound/music as OUT of v1 scope, so this is a deliberate exception, not an oversight.

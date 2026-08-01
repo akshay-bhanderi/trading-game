@@ -177,7 +177,7 @@ export default function HubScene({ cityId, cityName }: HubSceneProps) {
 
         let sprite: AnimatedSprite | null = null
         let tickerHandler: ((ticker: Ticker) => void) | null = null
-        loadCharacterAnimations('/assets/character').then((animations) => {
+        loadCharacterAnimations(`${import.meta.env.BASE_URL}assets/character`).then((animations) => {
           if (disposed) return
           sprite = createCharacterSprite(animations)
           sprite.scale.set(1.1)
