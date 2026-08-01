@@ -42,6 +42,9 @@ const CITY_SCENES: Record<CityId, CityScene> = {
  * future Tier 3/4 city added before its own scene is assigned) rather than
  * throwing — background art is cosmetic, never worth crashing the scene. */
 export function backgroundUrl(baseUrl: string, cityId: CityId, isNight: boolean): string {
-  const scene = CITY_SCENES[cityId] ?? CITY_SCENES.farrow
+  // CityId is a plain `string` (not a literal union), so under
+  // noUncheckedIndexedAccess even the hardcoded `.farrow` fallback types as
+  // possibly-undefined — it isn't; the key is a literal in CITY_SCENES above.
+  const scene = CITY_SCENES[cityId] ?? CITY_SCENES.farrow!
   return `${baseUrl}${isNight ? scene.night : scene.day}`
 }
