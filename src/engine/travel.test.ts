@@ -16,20 +16,40 @@ describe('getTravelDays', () => {
     expect(getTravelDays('farrow', 'farrow')).toBe(0)
   })
 
-  it('covers all 8x8 city pairs and matches the same-tier/adjacent-tier rule', () => {
-    expect(CITIES).toHaveLength(8)
+  it('covers all 15x15 city pairs and matches §4\'s full distance rule (same-tier=1, adjacent-tier=2, 2+ tier gap=3, Frosthelm overrides to 3 except Kessler=2)', () => {
+    expect(CITIES).toHaveLength(15)
     for (const from of CITIES) {
       for (const to of CITIES) {
         const days = getTravelDays(from.id, to.id)
         if (from.id === to.id) {
           expect(days).toBe(0)
+        } else if (from.id === 'frosthelm' || to.id === 'frosthelm') {
+          const other = from.id === 'frosthelm' ? to.id : from.id
+          expect(days).toBe(other === 'kessler-mines' ? 2 : 3)
         } else if (from.tier === to.tier) {
           expect(days).toBe(1)
-        } else {
+        } else if (Math.abs(from.tier - to.tier) === 1) {
           expect(days).toBe(2)
+        } else {
+          expect(days).toBe(3)
         }
       }
     }
+  })
+
+  it('Tier 1 <-> Tier 3/4 is explicitly 3 days per §4 (non-Frosthelm example)', () => {
+    expect(getTravelDays('farrow', 'auren-city')).toBe(3)
+    expect(getTravelDays('farrow', 'novara-heights')).toBe(3)
+  })
+
+  it('Frosthelm is always 3 days from anywhere except Kessler Mines (2) — even overriding what the generic tier rule would give', () => {
+    // Frosthelm (Tier 4) <-> Auren City (Tier 3) is ADJACENT tier, which the
+    // generic rule would compute as 2 days — Frosthelm's special case must
+    // override that down to 3.
+    expect(getTravelDays('frosthelm', 'auren-city')).toBe(3)
+    expect(getTravelDays('frosthelm', 'farrow')).toBe(3)
+    expect(getTravelDays('frosthelm', 'kessler-mines')).toBe(2)
+    expect(getTravelDays('kessler-mines', 'frosthelm')).toBe(2)
   })
 
   it('throws for an unknown city id', () => {

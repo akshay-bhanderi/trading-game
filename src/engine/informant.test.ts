@@ -42,11 +42,20 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
   }
 }
 
-describe('data sanity — Medium+ bank cities in v1', () => {
-  it('exactly Port Vela, Ironvale, Silkden are Medium (no Large/Huge city exists in v1)', () => {
+describe('data sanity — Medium+ bank cities (full 15-city world since the 2026-08 Tier 3/4 expansion)', () => {
+  it('exactly 8 cities are Medium+, including the Tier 3/4 Large/Huge banks', () => {
     const mediumPlus = CITIES.filter((c) => c.bankSize === 'Medium' || c.bankSize === 'Large' || c.bankSize === 'Huge')
-    expect(mediumPlus.map((c) => c.id).sort()).toEqual(['ironvale', 'port-vela', 'silkden'])
-    expect(CITIES.some((c) => c.bankSize === 'Large' || c.bankSize === 'Huge')).toBe(false)
+    expect(mediumPlus.map((c) => c.id).sort()).toEqual([
+      'auren-city',
+      'duskfield',
+      'ironvale',
+      'novara-heights',
+      'port-vela',
+      'silkden',
+      'the-freeport',
+      'voltspire',
+    ])
+    expect(CITIES.some((c) => c.bankSize === 'Large' || c.bankSize === 'Huge')).toBe(true)
   })
 })
 
@@ -62,8 +71,14 @@ describe('isInformantAvailable', () => {
     }
   })
 
-  it('is false and does not throw for an unknown/unreachable city id (e.g. Novara Heights, out of v1 scope)', () => {
+  it('is true at Novara Heights (Huge bank, now reachable since the 2026-08 Tier 3/4 expansion)', () => {
     const state = makeState({ currentCity: 'novara-heights' })
+    expect(() => isInformantAvailable(state)).not.toThrow()
+    expect(isInformantAvailable(state)).toBe(true)
+  })
+
+  it('is false and does not throw for a genuinely unknown city id', () => {
+    const state = makeState({ currentCity: 'nonexistent-city' })
     expect(() => isInformantAvailable(state)).not.toThrow()
     expect(isInformantAvailable(state)).toBe(false)
   })
@@ -109,19 +124,18 @@ describe('calcTipAccuracy', () => {
     expect(proAccuracy).toBeGreaterThan(expertAccuracy)
   })
 
-  it('uses the generic (non-Novara) base accuracy for every v1-reachable city, since Novara Heights does not exist in v1 data', () => {
+  it('uses the generic (non-Novara) base accuracy for every OTHER city', () => {
     for (const city of CITIES) {
+      if (city.id === 'novara-heights') continue
       const accuracy = calcTipAccuracy(makeState({ currentCity: city.id, difficulty: 'Pro' }))
       expect(accuracy).toBeCloseTo(CONFIG.events.insider.baseAccuracy, 10)
     }
   })
 
-  it('would apply the Novara bonus accuracy if that city ever existed (generic lookup, forward-compatible) and does not throw', () => {
+  it('applies the Novara bonus accuracy at Novara Heights (reachable since the 2026-08 Tier 3/4 expansion)', () => {
     const state = makeState({ currentCity: 'novara-heights', difficulty: 'Pro' })
     expect(() => calcTipAccuracy(state)).not.toThrow()
-    // Novara isn't in CITIES in v1, so this falls back to the generic base
-    // accuracy (documented behavior) rather than the Novara bonus rate.
-    expect(calcTipAccuracy(state)).toBeCloseTo(CONFIG.events.insider.baseAccuracy, 10)
+    expect(calcTipAccuracy(state)).toBeCloseTo(CONFIG.events.insider.novaraBonusAccuracy, 10)
   })
 
   it('always returns a value clamped to [0, 1]', () => {

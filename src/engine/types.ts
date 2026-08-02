@@ -53,6 +53,11 @@ export interface City {
   produces: GoodId[]
   /** Good ids this city wants/is dear for (feeds §6's consumer cityModifier). */
   wants: GoodId[]
+  /** §4 Tier 4: "The Freeport... no loans offered here." `undefined`/missing
+   * is equivalent to `true` (every Tier 1-3 city offers loans normally) —
+   * only The Freeport ever sets this `false`. Checked by
+   * bank/loans.ts's `takeLoan`. */
+  loansOffered?: boolean
 }
 
 // ---------------------------------------------------------------------------

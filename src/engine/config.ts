@@ -525,6 +525,17 @@ export const TAX = {
    * loan at penalty rate 1.2%/day" — a distinct, higher penalty rate, not
    * simply `BANKING.loanInterestDailyRates.Huge`). */
   forcedLoanPenaltyDailyRate: 0.012,
+
+  /**
+   * §4 Tier 4, The Freeport's Special: "Profit realized while based here
+   * during year-end taxed at 12% flat (no CA needed) — but no loans offered
+   * here." (2026-08 Tier 3/4 expansion.) Overrides whatever CA tier is
+   * active — see tax.ts's `runYearEnd` for the exact "physically standing
+   * in The Freeport on the year-end day" gate. The no-loans half of this
+   * Special is unrelated to tax and lives on the city record itself
+   * (`City.loansOffered`, checked by bank/loans.ts).
+   */
+  freeportFlatRate: 0.12,
 }
 
 // ---------------------------------------------------------------------------

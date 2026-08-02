@@ -82,12 +82,12 @@ describe('EVENT_TABLE', () => {
     }
   })
 
-  it('flags Electronics/Rare-Metals-only event types as inert in v1 with no resolvable goods', () => {
-    expect(EVENT_TABLE.techBreakthrough.inertInV1).toBe(true)
-    expect(EVENT_TABLE.techBreakthrough.goodsRule).toEqual({ kind: 'inertNoV1Good' })
+  it('2026-08: Electronics/Rare-Metals event types are active (no longer inert) now that both goods + Kessler Mines ship', () => {
+    expect(EVENT_TABLE.techBreakthrough.inertInV1).toBe(false)
+    expect(EVENT_TABLE.techBreakthrough.goodsRule).toEqual({ kind: 'fixedGoods', goodIds: ['electronics'] })
 
-    expect(EVENT_TABLE.newDepositDiscovered.inertInV1).toBe(true)
-    expect(EVENT_TABLE.newDepositDiscovered.goodsRule).toEqual({ kind: 'inertNoV1Good' })
+    expect(EVENT_TABLE.newDepositDiscovered.inertInV1).toBe(false)
+    expect(EVENT_TABLE.newDepositDiscovered.goodsRule).toEqual({ kind: 'fixedGoods', goodIds: ['rare-metals'] })
   })
 
   it('T068: flags aviationSafetyIncident as inert too (a non-price event modeled with an empty goods list, same inertNoV1Good shape as the Electronics/Rare-Metals rows)', () => {
@@ -96,7 +96,7 @@ describe('EVENT_TABLE', () => {
   })
 
   it('does not flag any other event type as inert (warehouseFire included — it is excluded from scheduling entirely, not "inert")', () => {
-    const INERT_TYPE_IDS = new Set<EventTypeId>(['techBreakthrough', 'newDepositDiscovered', 'aviationSafetyIncident'])
+    const INERT_TYPE_IDS = new Set<EventTypeId>(['aviationSafetyIncident'])
     for (const typeId of ALL_EVENT_TYPE_IDS) {
       if (INERT_TYPE_IDS.has(typeId)) continue
       expect(EVENT_TABLE[typeId].inertInV1).toBe(false)
@@ -128,8 +128,8 @@ describe('EVENT_TABLE', () => {
     })
   })
 
-  it('mine collapse affects only Iron (Rare Metals excluded per v1 scope)', () => {
-    expect(EVENT_TABLE.mineCollapse.goodsRule).toEqual({ kind: 'fixedGoods', goodIds: ['iron'] })
+  it('mine collapse affects Iron and Rare Metals', () => {
+    expect(EVENT_TABLE.mineCollapse.goodsRule).toEqual({ kind: 'fixedGoods', goodIds: ['iron', 'rare-metals'] })
   })
 
   it('festival season affects Silk and Spices', () => {

@@ -169,6 +169,12 @@ export function takeLoan(state: GameState, cityId: CityId, amount: number): Game
   if (state.currentCity !== cityId) return state
   if (amount <= 0) return state
 
+  // §4 Tier 4, The Freeport's Special (2026-08 Tier 3/4 expansion): "no
+  // loans offered here." `loansOffered` defaults to true (undefined) for
+  // every other city — see City's own doc comment (types.ts).
+  const city = CITIES.find((c) => c.id === cityId)
+  if (city?.loansOffered === false) return state
+
   const existing = state.bankAccounts[cityId]
   if (existing?.loan) return state
 

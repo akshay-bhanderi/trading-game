@@ -32,7 +32,7 @@ Each day the player is in exactly one city and may, in any order:
 
 While traveling multiple days, the player still receives newspapers each morning but cannot trade.
 
-**Cargo capacity:** starts at 40 units. Upgradable: 100 units ($2,500), 250 ($12,000), 600 ($60,000), 1,500 ($300,000). ⚙
+**Cargo capacity:** starts at 40 units (T029 balance-pass note: the actual shipped starting value is 1,499, tuned against the bot harness — see `CARGO.startingCapacity`'s own comment in config.ts). Upgradable: 100 units ($2,500), 250 ($12,000), 600 ($60,000), 1,500 ($300,000), 3,000 ($1,200,000), 6,000 ($4,500,000). The last two tiers were added 2026-08 (user-requested) so capacity keeps growing past 1,500 into the late game — not yet balance-pass-verified against the §11 bot harness (see `CONFIG.cargo.upgrades`'s own comment). ⚙
 **Cargo unit model:** 1 cargo slot = 1 unit of ANY commodity, regardless of type. No weight/bulk mechanic — a unit of Grain and a unit of Electronics each cost 1 slot; the strategic tradeoff comes purely from each commodity's own base price (§5), not from bulk.
 **Warehouse storage** (§14) is a separate, per-city system: goods stored there don't count against cargo capacity and don't travel with you when you leave — see §14 for how it differs from what you carry.
 
@@ -54,11 +54,11 @@ While traveling multiple days, the player still receives newspapers each morning
 
 ---
 
-## 4. World — 15 Cities in 4 Unlock Tiers (Tier 1+2 / 8 cities in v1)
+## 4. World — 15 Cities in 4 Unlock Tiers (all 15 ship, since 2026-08)
 
 Cities unlock by **net worth** (cash + deposits + goods at last-known prices − debt). A newspaper headline announces each unlock ("Trade routes to Port Vela now open to licensed merchants!").
 
-City count is config-driven: each city is a data object; removing one from the config removes it from the game cleanly. **Decision: v1 ships with only Tier 1+2 (8 cities: Farrow, Saltmere, Copperfell, Millbrook, Port Vela, Ironvale, Silkden, Greyharbor). Tier 3 and Tier 4 (7 cities) are defined below for design completeness and config compatibility, but are OUT of v1 scope — see §13.** Since city unlock is net-worth-gated, capping at Tier 2 also caps v1's addressable net-worth range at roughly the §11 day-90 target; the $2,000,000 and $250,000 unlock thresholds simply go unused until Tier 3/4 ship.
+City count is config-driven: each city is a data object; removing one from the config removes it from the game cleanly. **2026-08 UPDATE (user-requested): the original v1 scope fence — Tier 1+2 only (8 cities), Tier 3/4 held back per §13 — is lifted. All 15 cities below now ship**, added in `data/cities.ts` alongside Electronics/Rare Metals (`data/goods.ts`), with the small number of genuinely new mechanics (Freeport's flat tax + no-loans, Frosthelm's travel override) implemented in `tax.ts`/`bank/loans.ts`/`travel.ts` — see those files' own doc comments for the exact rationale. Everything else (price engine, event scheduling, banking gates, the Informant, hotels, warehouses, aviation) already derived city/good behavior generically from `City`/`Good` records, so needed no code changes at all to pick up the new content. §13 below is retained for historical context (why the fence existed originally) but no longer describes current scope.
 
 ### Tier 1 — available from start (net worth $0)
 | City | Character | Bank size | Hotel/night | Produces (cheap) | Wants (dear) |
@@ -98,7 +98,7 @@ Exact matrix: generate a 15×15 table in config following these rules; hand-twea
 
 ---
 
-## 5. Commodities — start with 3, unlock to 10 (9 reachable in v1; Electronics is Tier 3, out of v1 scope — §13)
+## 5. Commodities — start with 3, unlock to 11 (all 11 ship, since 2026-08 — see §4)
 
 Unlocks are tied to city unlocks (you meet the commodity where it's traded) plus a license fee paid once at any bank.
 
@@ -116,9 +116,9 @@ Unlocks are tied to city unlocks (you meet the commodity where it's traded) plus
 | 10 | Electronics | Tier 3 | $25,000 | 800 | High | ±22% |
 | — | **Rare Metals** | Tier 3 (Kessler) | $60,000 | 2,500 | Extreme | ±30% |
 
-Silk's unlock tier was moved from Tier 3 to Tier 2 to match Port Vela and Silkden, both Tier 2 cities that produce/want it — see §4. Electronics and Rare Metals remain Tier 3 and are OUT of v1 scope (§13) along with all Tier 3/4 cities.
+Silk's unlock tier was moved from Tier 3 to Tier 2 to match Port Vela and Silkden, both Tier 2 cities that produce/want it — see §4. Electronics and Rare Metals shipped 2026-08 alongside the rest of Tier 3/4 (§4).
 
-Rare Metals is one commodity in v1 scope for later (Tier 3). **v2 idea (do NOT build in v1):** split into periodic-table variants (Lithium, Cobalt, Platinum, Iridium) as sub-lots.
+**v2 idea (not built):** split Rare Metals into periodic-table variants (Lithium, Cobalt, Platinum, Iridium) as sub-lots.
 
 ---
 
@@ -197,17 +197,21 @@ rank = clamp(floor(score), 1, 10)
 
 ## 9. Banking
 
-### Loans (city bank size × trader rank)
+### Loans (city bank size × trader rank) — unchanged, still per-city
 Max principal = `baseCap(bankSize) × rankFactor(rank)`
 - baseCap: Small $1,000 · Medium $10,000 · Large $50,000 · Huge $250,000 ⚙
 - rankFactor: rank 1 = 1×, each rank ×1.8 (rank 10 ≈ 198×) ⚙
 - Interest: Small 0.9%/day · Medium 0.7% · Large 0.55% · Huge 0.4% ⚙ (× difficulty multiplier). Simple daily interest added to balance.
 - One active loan per bank; up to 3 banks concurrently.
 - Collateral note: goods aren't locked, but total debt feeds default checks below.
+- Loans still require physically standing in that city's bank to take/repay, and are still capped by that specific city's bank size — see the Deposits redesign immediately below for what changed and what didn't.
 
-### Deposits
-- Any bank, no cap, from day 1. Interest compounds daily: Small 0.10%/day · Medium 0.14% · Large 0.18% · Huge/Novara 0.25% ⚙.
-- Money deposited is safe from all events. Withdrag anywhere the same chain… **simplification for v1: one global bank account per bank-size class is too complex — instead, deposits/loans live at the specific city's bank; you must be in that city to transact with it.** (This creates real routing decisions.)
+### Deposits — REDESIGNED 2026-08 (user-requested; supersedes the original v1 simplification)
+The original v1 text here read: "one global bank account per bank-size class is too complex — instead, deposits/loans live at the specific city's bank; you must be in that city to transact with it." In real play this read as a bug ("I deposited $1,000 and it disappeared") rather than the intended routing decision, so it's been replaced:
+- **One single pooled deposit balance**, reachable from ANY city's Bank screen — no more "must be in the same city you deposited in." Deposit or withdraw from anywhere; withdrawal is still capped by the pooled balance itself (still "no cap" on deposits, per the original rule).
+- **One flat interest rate** (⚙ `CONFIG.banking.globalDepositInterestDailyRate`, currently matching the old Medium-bank rate) applies to the whole pooled balance, compounding daily — replacing the old per-bank-size rate table (Small/Medium/Large/Huge/Novara), since a pooled balance has no single city to attribute a rate to. Novara Heights' "best deposit rates" Special (§4) no longer has a mechanical effect for this reason — see §4's Novara Heights entry.
+- Money deposited is still safe from all events.
+- **Loans are unaffected by this redesign** — see the Loans subsection above. Only deposits pooled; this was a deliberate, narrow change, not a full "merge banking into one global account" rewrite.
 
 ### Default — player's choice
 Trigger: a loan is 15 days past its 60-day term, OR total debt > 2× net worth for 7 straight days ⚙. The bank confronts the player with three options (player picks — per design decision):
@@ -284,12 +288,14 @@ Non-hub popups (Market/Bank/Newspaper/etc.) may still ship with simple placehold
 
 ---
 
-## 13. v1 Scope Fence
+## 13. v1 Scope Fence — Tier 3/4 clause LIFTED 2026-08 (kept for history)
 
-**IN:** everything above except—
-**OUT (v2+):** Tier 3 and Tier 4 cities (Auren City, Voltspire, Duskfield, Kessler Mines, Novara Heights, Frosthelm, The Freeport) and their unlocks; Electronics and Rare Metals commodities; online leaderboard, Rare Metal sub-variants, travel ambush/storm events, multiple save slots, achievements, sound/music, hired traders/automation, Greyharbor smuggling mini-mechanic (v1: it's just a normal city with wider spreads).
+**IN (original v1):** everything above except—
+**OUT (v1, later un-fenced — see below):** Tier 3 and Tier 4 cities (Auren City, Voltspire, Duskfield, Kessler Mines, Novara Heights, Frosthelm, The Freeport) and their unlocks; Electronics and Rare Metals commodities. Still OUT: online leaderboard, Rare Metal sub-variants, travel ambush/storm events, multiple save slots, achievements, sound/music (superseded — see Phase 15, background music now shipped as a deliberate exception), hired traders/automation, Greyharbor smuggling mini-mechanic (still just a normal city with wider spreads).
 
-With Tier 3/4 out, v1's world is 8 cities (§4) and 9 commodities (§5, all but Electronics), and the CA/tax system (§10) and hidden rank (§8) still apply in full since they aren't tier-gated. The §11 day-180/360 targets assume the full 15-city game and are aspirational for v2; v1 balancing should focus on the day-10/30/90 targets, which fit entirely within Tier 1+2.
+**2026-08 UPDATE (user-requested):** the Tier 3/4 city and Electronics/Rare Metals clause above is lifted — all 15 cities and all 11 commodities now ship (§4/§5). This was a scope decision, not a balance-verified one: the §11 day-180/360 targets ($1.5M-3M / $10M-30M), which the original doc explicitly flagged as "aspirational for v2, assume the full 15-city game," have NOT been hit by a full iterative balance-tuning pass the way the original day-10/30/90 targets were (see config.ts's `CARGO`/`cityModifierRanges`/`EVENTS` comments for how much iteration THAT took). A one-off 200-seed/360-day diagnostic run after shipping showed the news bot (the "smart" strategy) landing at roughly $1.0M/$3.7M at day 180/360 — meaningfully under both target bands, not exploited-over them. The CA/tax system (§10) and hidden rank (§8) already applied generically regardless of tier, so needed no change. Tier 3/4's own genuinely NEW mechanics (Novara Heights' Informant bonus, Frosthelm's travel override, The Freeport's flat tax + no loans) are implemented — see §4/§9's own updated text for what changed and where.
+
+**Follow-up work still open:** a proper iterative balance pass for Tier 3/4 (tuning license fees, city modifier ranges, or unlock thresholds specifically for the day-180/360 range, the way the original v1 pass tuned `CARGO.startingCapacity` and `cityModifierRanges` together against day-10/30/90) has not been done. Treat the day-180/360 targets as aspirational until that follow-up lands.
 
 **Phase 2 — Wealth Systems (§14–§16):** Warehouse storage, Hotel ownership, and Aviation leasing are now fully specified (this was "warehouse storage per city," previously listed as a vague OUT item — it's designed in full below, just sequenced after the core loop). Build them only after the v1 core loop ships and clears the §11 bot-harness balance pass; they are new sources of net worth and must be balance-tested on their own before release, per §17's build order. None of the §11 targets above assume their income.
 

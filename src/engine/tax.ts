@@ -252,7 +252,11 @@
 import { CONFIG } from './config'
 import { calcWarehouseAnnualBill } from './warehouse'
 import { computeHotelLicenseFeeOwed } from './hotel'
-import type { CATier, GameState, TaxRecord } from './types'
+import type { CATier, CityId, GameState, TaxRecord } from './types'
+
+/** The Freeport's city id, per §4's Tier 4 table — see this file's
+ * `runYearEnd` for the flat-12%-no-CA Special it triggers. */
+const FREEPORT_CITY_ID: CityId = 'the-freeport'
 
 /**
  * Applies the active CA tier's rate/profit-cap/above-cap formula to a
@@ -329,7 +333,22 @@ export function runYearEnd(state: GameState): GameState {
   const isNoobFirstYearWaiver =
     state.difficulty === 'Noob' && fiscalYear === 1 && CONFIG.difficulty.Noob.firstTaxYearWaived
 
-  const taxOwed = isNoobFirstYearWaiver ? 0 : computeTaxOwed(taxableBase, caTierActive)
+  // §4 Tier 4, The Freeport's Special (2026-08 Tier 3/4 expansion):
+  // "Profit realized while based here during year-end taxed at 12% flat (no
+  // CA needed)" — overrides whichever CA tier is active, but NOT the Noob
+  // first-year waiver above (§3's waiver is a blanket "first tax year"
+  // rule with no stated city exception). "Based here during year-end" is
+  // read as physically standing in The Freeport the moment this function
+  // runs (`state.currentCity`), same presence semantics every other
+  // city-gated mechanic in this engine already uses (banking, CA hiring,
+  // the Informant).
+  const isAtFreeportYearEnd = state.currentCity === FREEPORT_CITY_ID
+
+  const taxOwed = isNoobFirstYearWaiver
+    ? 0
+    : isAtFreeportYearEnd
+      ? taxableBase * CONFIG.tax.freeportFlatRate
+      : computeTaxOwed(taxableBase, caTierActive)
 
   // T064 (§16 Aviation): plane maintenance is billed ALONGSIDE tax, from the
   // same combined pool — see file header. NOT subject to the Noob waiver

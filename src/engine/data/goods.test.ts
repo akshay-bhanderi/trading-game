@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { GOODS } from './goods'
 
-describe('GOODS data (T006, §5)', () => {
-  it('has exactly 9 v1 goods', () => {
-    expect(GOODS).toHaveLength(9)
+describe('GOODS data (T006, §5, full 11-good set since the 2026-08 Tier 3/4 expansion)', () => {
+  it('has exactly 11 goods', () => {
+    expect(GOODS).toHaveLength(11)
   })
 
   it('has unique ids', () => {
@@ -11,7 +11,7 @@ describe('GOODS data (T006, §5)', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('uses the exact lowercase good ids expected by other v1 data files', () => {
+  it('uses the exact lowercase good ids expected by other data files', () => {
     const ids = GOODS.map((g) => g.id)
     expect(ids).toEqual([
       'grain',
@@ -23,17 +23,9 @@ describe('GOODS data (T006, §5)', () => {
       'fuel',
       'steel',
       'silk',
+      'electronics',
+      'rare-metals',
     ])
-  })
-
-  it('excludes Electronics and Rare Metals (§13 authoritative over §5 ambiguity)', () => {
-    const ids = GOODS.map((g) => g.id)
-    expect(ids).not.toContain('electronics')
-    expect(ids).not.toContain('rare-metals')
-    expect(ids).not.toContain('rareMetals')
-    const names = GOODS.map((g) => g.name.toLowerCase())
-    expect(names).not.toContain('electronics')
-    expect(names).not.toContain('rare metals')
   })
 
   it('matches §5 table values exactly for each good', () => {
@@ -101,6 +93,20 @@ describe('GOODS data (T006, §5)', () => {
       basePrice: 300,
       volatilityClass: 'High',
       dailyDriftPct: 0.18,
+    })
+    expect(byId.electronics).toMatchObject({
+      unlockCondition: { kind: 'tier', tier: 3 },
+      licenseFee: 25_000,
+      basePrice: 800,
+      volatilityClass: 'High',
+      dailyDriftPct: 0.22,
+    })
+    expect(byId['rare-metals']).toMatchObject({
+      unlockCondition: { kind: 'city', cityId: 'kessler-mines' },
+      licenseFee: 60_000,
+      basePrice: 2_500,
+      volatilityClass: 'Extreme',
+      dailyDriftPct: 0.3,
     })
   })
 

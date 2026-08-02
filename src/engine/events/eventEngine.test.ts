@@ -133,7 +133,7 @@ describe('scheduleEvent', () => {
     expect(sawFalse).toBe(true)
   })
 
-  it('resolves government tariff scope to a tier actually present in CITIES (1 or 2 in v1)', () => {
+  it('resolves government tariff scope to a tier actually present in CITIES (1-4, since the 2026-08 Tier 3/4 expansion)', () => {
     const rng = createRng(77)
     let state = makeState({ day: 1 })
     let found = false
@@ -145,7 +145,7 @@ describe('scheduleEvent', () => {
         found = true
         expect(result.event.scope.kind).toBe('tier')
         if (result.event.scope.kind === 'tier') {
-          expect([1, 2]).toContain(result.event.scope.tier)
+          expect([1, 2, 3, 4]).toContain(result.event.scope.tier)
         }
       }
     }

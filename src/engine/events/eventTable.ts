@@ -293,10 +293,10 @@ export const EVENT_TABLE: Record<EventTypeId, EventTypeDef> = {
   mineCollapse: {
     typeId: 'mineCollapse',
     label: 'Mine collapse',
-    // §7: "Iron/Rare Metals" -> only Iron is reachable in v1 (Rare Metals is
-    // out of scope, §13); Iron alone is included here, per the task brief's
-    // instruction that "only Iron applies in this codebase".
-    goodsRule: { kind: 'fixedGoods', goodIds: ['iron'] },
+    // §7: "Iron/Rare Metals" — both now reachable (2026-08 Tier 3/4
+    // expansion added Rare Metals + Kessler Mines; see data/goods.ts and
+    // data/cities.ts).
+    goodsRule: { kind: 'fixedGoods', goodIds: ['iron', 'rare-metals'] },
     // §7: "at source city" -> the city that produces the affected good(s).
     scopeRule: { kind: 'producerCityOfAffectedGoods' },
     // §7: "+50-150%" -> multiplier 1.5-2.5.
@@ -304,8 +304,8 @@ export const EVENT_TABLE: Record<EventTypeId, EventTypeDef> = {
     durationDays: { min: 4, max: 7 },
     inertInV1: false,
     docNote:
-      'Rare Metals dropped from affected goods (out of v1 scope, §13) — only Iron applies. ' +
-      '§7 gives no duration for this row; defaulted to 4-7 days (documented assumption).',
+      '§7 gives no duration for this row; defaulted to 4-7 days (documented assumption). ' +
+      'Rare Metals rejoined affectedGoodIds 2026-08 once Kessler Mines (its source city) shipped.',
   },
 
   workersStrike: {
@@ -348,39 +348,38 @@ export const EVENT_TABLE: Record<EventTypeId, EventTypeDef> = {
   techBreakthrough: {
     typeId: 'techBreakthrough',
     label: 'Tech breakthrough',
-    // Electronics is out of v1 scope (§13) — always resolves to no affected
-    // goods. See file header's "SCOPE FENCE" note.
-    goodsRule: { kind: 'inertNoV1Good' },
+    // Electronics shipped 2026-08 (Tier 3/4 expansion) — no longer inert.
+    goodsRule: { kind: 'fixedGoods', goodIds: ['electronics'] },
     scopeRule: { kind: 'fixedGlobal' },
     // §7: "-35%" -> multiplier 0.65 exact.
     multiplier: { kind: 'single', range: { min: 0.65, max: 0.65 } },
     // §7: "over 5 days" exact.
     durationDays: { min: 5, max: 5 },
-    inertInV1: true,
+    inertInV1: false,
     docNote:
-      'Electronics is OUT of v1 scope (§13) — this event type is data-defined for table ' +
-      'completeness/§7 parity but always resolves an EMPTY affectedGoodIds in v1, making it a ' +
-      'genuine no-op if ever scheduled.',
+      'Exact -35% and 5-day duration both given directly by §7 — no assumptions needed. ' +
+      'Activated 2026-08 once Electronics shipped (previously inert, out of v1 scope).',
   },
 
   newDepositDiscovered: {
     typeId: 'newDepositDiscovered',
     label: 'New deposit discovered',
-    // Rare Metals is out of v1 scope (§13) — same treatment as Tech
-    // breakthrough above.
-    goodsRule: { kind: 'inertNoV1Good' },
-    // Kessler Mines (Rare Metals' only source city) doesn't exist in v1 —
-    // global is used as an inert placeholder; see file header.
-    scopeRule: { kind: 'fixedGlobal' },
+    // Rare Metals shipped 2026-08 (Tier 3/4 expansion) — no longer inert.
+    goodsRule: { kind: 'fixedGoods', goodIds: ['rare-metals'] },
+    // §7 implies a source-city concept (mirroring Mine collapse) — now that
+    // Kessler Mines (Rare Metals' only producer) exists, resolve to
+    // whichever city actually produces the affected good, same rule Mine
+    // collapse uses.
+    scopeRule: { kind: 'producerCityOfAffectedGoods' },
     // §7: "-50%" -> multiplier 0.5 exact.
     multiplier: { kind: 'single', range: { min: 0.5, max: 0.5 } },
     // §7: "for 8 days" exact.
     durationDays: { min: 8, max: 8 },
-    inertInV1: true,
+    inertInV1: false,
     docNote:
-      'Rare Metals is OUT of v1 scope (§13), and its only source city (Kessler Mines) does not ' +
-      'exist in v1 either — data-defined for table completeness/§7 parity but always inert ' +
-      '(empty affectedGoodIds) in v1.',
+      'Exact -50% and 8-day duration both given directly by §7. Activated 2026-08 once Rare ' +
+      'Metals + Kessler Mines (its only producer) shipped — scope now resolves to the producer ' +
+      "city (mirrors Mine collapse's rule) instead of the old inert global placeholder.",
   },
 
   shipSinkingRouteClosed: {

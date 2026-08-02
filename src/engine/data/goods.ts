@@ -1,36 +1,18 @@
 /**
- * Commodity/goods data — Trade Winds of Selvara, v1 scope.
+ * Commodity/goods data — Trade Winds of Selvara.
  *
  * Pure TypeScript, zero React imports (see /src/engine/README.md).
- * Source of truth: trade-winds-design-doc.md §5 (Commodities table) and
- * §13 (v1 scope fence). Reuses the `Good`/`GoodId`/`GoodUnlockCondition`/
- * `VolatilityClass` types already defined in /src/engine/types.ts — no
- * redefinition here.
+ * Source of truth: trade-winds-design-doc.md §5 (Commodities table).
+ * Reuses the `Good`/`GoodId`/`GoodUnlockCondition`/`VolatilityClass` types
+ * already defined in /src/engine/types.ts — no redefinition here.
  *
- * Scope note (T006): §5's table lists 11 rows (9 v1 goods + Electronics +
- * Rare Metals), but §5's own prose is internally ambiguous about Rare
- * Metals — one sentence right after the table reads "Rare Metals is one
- * commodity in v1 scope for later (Tier 3)", which read in isolation could
- * be misread as "Rare Metals ships in v1". §13 (the v1 scope fence) is the
- * authoritative section whenever the doc disagrees with itself, and §13
- * settles this explicitly:
- *   - §13's OUT list names "Electronics and Rare Metals commodities"
- *     together, with no carve-out for Rare Metals.
- *   - §13 also states v1 ships "9 commodities (§5, all but Electronics)" —
- *     9 total, which only balances if Rare Metals is ALSO excluded (9 v1
- *     goods + Electronics + Rare Metals = 11 total rows in §5's table).
- *   - Mechanically, Rare Metals' only unlock path is `{ kind: 'city',
- *     cityId: 'kessler-mines' }` (§5: "Tier 3 (Kessler)") — Kessler Mines
- *     is a Tier 3 city, and §13 puts every Tier 3/4 city OUT of v1. With
- *     its sole source city absent, Rare Metals has no reachable unlock
- *     condition in v1 regardless.
- * All three signals agree, so Rare Metals (alongside Electronics) is
- * excluded from this file. Both remain fully defined in the design doc for
- * v2 and are trivial to add back later — see §5's table for their eventual
- * data (Electronics: Tier 3, $25,000 license, base $800, High, ±22%;
- * Rare Metals: Tier 3/Kessler, $60,000 license, base $2,500, Extreme, ±30%).
- *
- * v1 ships exactly 9 goods, matching §5's table rows 1-9.
+ * TIER 3/4 EXPANSION (2026-08, user-requested): Electronics and Rare Metals
+ * — previously excluded per the original §13 v1 scope fence (kept out
+ * alongside Tier 3/4 cities, since Rare Metals' only unlock path,
+ * `{kind:'city', cityId:'kessler-mines'}`, had no reachable source city) —
+ * are now added below, now that Kessler Mines (and the rest of Tier 3/4,
+ * see /src/engine/data/cities.ts) exist. §5's table numbers, reproduced
+ * exactly.
  */
 
 import type { Good } from '../types'
@@ -120,5 +102,28 @@ export const GOODS: Good[] = [
     basePrice: 300,
     volatilityClass: 'High',
     dailyDriftPct: 0.18,
+  },
+  // ---------------------------------------------------------------------
+  // Tier 3/4 expansion (2026-08) — see file header.
+  // ---------------------------------------------------------------------
+  {
+    id: 'electronics',
+    name: 'Electronics',
+    unlockCondition: { kind: 'tier', tier: 3 },
+    licenseFee: 25_000,
+    basePrice: 800,
+    volatilityClass: 'High',
+    dailyDriftPct: 0.22,
+  },
+  {
+    id: 'rare-metals',
+    name: 'Rare Metals',
+    // §5: "Tier 3 (Kessler)" — unlocked specifically by Kessler Mines, not
+    // just any Tier 3 city.
+    unlockCondition: { kind: 'city', cityId: 'kessler-mines' },
+    licenseFee: 60_000,
+    basePrice: 2_500,
+    volatilityClass: 'Extreme',
+    dailyDriftPct: 0.3,
   },
 ]

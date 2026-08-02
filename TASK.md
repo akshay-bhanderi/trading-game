@@ -45,6 +45,7 @@ The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-p
 | 15 | Background Music | [tasks/phase-15-background-music.md](tasks/phase-15-background-music.md) | ✅ Complete (T071–T072) |
 | 16 | New Character Sprite + Real Walk Animation | [tasks/phase-16-character-walk-sprite.md](tasks/phase-16-character-walk-sprite.md) | ✅ Complete (T073) |
 | 17 | HUD Buttons: Icons → Text Labels | [tasks/phase-17-hud-text-buttons.md](tasks/phase-17-hud-text-buttons.md) | ✅ Complete (T074) |
+| 18 | 2026-08 UX/Economy Overhaul + Tier 3/4 World Expansion | [tasks/phase-18-2026-08-overhaul.md](tasks/phase-18-2026-08-overhaul.md) | ✅ Complete |
 
 **Phases 0–13 complete.** T045's baseline (`baseline.v1.json`) and the full deferred test suite were both reconciled as part of T068's final pass — see [Phase 13](tasks/phase-13-final-balance-pass.md) for the harness diff, the deferred-test file list, and which constant was re-tuned (and why).
 
@@ -53,3 +54,5 @@ The bill comes due at **T068** (end of [Phase 13](tasks/phase-13-final-balance-p
 - [Phase 15](tasks/phase-15-background-music.md) loops a chosen background track during gameplay — §13 lists sound/music as OUT of v1 scope, so this is a deliberate exception, not an oversight.
 - [Phase 16](tasks/phase-16-character-walk-sprite.md) replaces the hub-scene character with user-supplied walk/idle art and fixes the "walk" state so it plays a real walk cycle instead of translating the idle pose (the current CraftPix pack has no walk sheet — see `character.ts`'s header comment).
 - [Phase 17](tasks/phase-17-hud-text-buttons.md) swaps the bottom-bar and menu-button icons in `Hud.tsx` for text labels, per user request (top wallet chip and "Buy hotel here" chip icons stay as-is — out of scope).
+
+**Phase 18** is a large, single-session batch of user-directed bug fixes, redesigns (Warehouse/Bank/Travel/Market UI, pooled deposits, CA's own HUD tab), and the Tier 3/4 world expansion (all 15 cities, all 11 goods, per-mechanic changes for Novara Heights/Frosthelm/The Freeport) — see [its phase file](tasks/phase-18-2026-08-overhaul.md) for the full list, the design-doc updates, and the explicitly-still-open Tier 3/4 balance-tuning follow-up.
