@@ -301,12 +301,10 @@ export interface Loan {
 
 export interface BankAccount {
   cityId: CityId
-  /** §9: "deposits/loans live at the specific city's bank" — no cross-city
-   * routing in v1. */
-  depositBalance: number
   /** null = no active loan at this bank. The shape itself enforces §9's
    * "one active loan per bank" constraint — a bank account can hold at
-   * most one Loan, never a list of them. */
+   * most one Loan, never a list of them. Loans stay per-city/presence-gated
+   * even after the 2026-08 bank redesign below — only deposits pooled. */
   loan: Loan | null
 }
 
@@ -509,9 +507,25 @@ export interface GameState {
   /** Current max cargo units (§2: starts 40, upgradable). */
   cargoCapacity: number
 
-  /** One bank account (deposit + at most one loan) per city that has a
+  /** One bank account (loan only — see `deposit` below) per city that has a
    * bank, keyed by city id (§9). */
   bankAccounts: Record<CityId, BankAccount>
+
+  /**
+   * USER-REQUESTED REDESIGN (2026-08): a single pooled deposit balance,
+   * replacing the old per-city `BankAccount.depositBalance`. Depositing or
+   * withdrawing no longer requires being in the same city you deposited in
+   * — "any modern bank" reads/writes this one number regardless of which
+   * city's Bank popup is open. Withdrawal is still capped by this balance
+   * (§9's "no cap" on deposits is unchanged; only the routing simplified).
+   * Earns `CONFIG.banking.globalDepositInterestDailyRate` — a single flat
+   * rate (user's explicit choice over "best bank ever used" or "local city
+   * rate") — via `accrueDepositInterest` (bank/deposits.ts). Loans remain
+   * entirely unaffected: still per-city, presence-gated, capped by that
+   * city's bank size × rank (§9's loan rules are untouched by this
+   * redesign). `undefined` is equivalent to `0` (nothing deposited yet).
+   */
+  deposit?: number
 
   /** Live/last-seen price state per city, per good (§6 information model). */
   priceStates: Record<CityId, Record<GoodId, PriceState>>
@@ -883,4 +897,18 @@ export interface GameState {
    * field) reads as day — see App.tsx's `?? false` read site.
    */
   currentCityIsNight?: boolean
+
+  /**
+   * USER-REQUESTED ADDITION (2026-08, Travel screen redesign) — day each
+   * city was last ARRIVED AT (not merely price-observed — see
+   * `PriceState.lastSeenDay` for that, a different concept), keyed by city
+   * id. Stamped by `createNewGame` (for the starting city, day 0) and by
+   * `actions/travel.ts`'s `advanceTravelDay` on every later arrival, using
+   * the POST-`advanceDay` day number so it reads correctly as "0 days ago"
+   * the moment you land. Powers the Travel screen's compact one-line
+   * "Last visited N days ago" / "Never visited" per-city summary, replacing
+   * the old expandable last-known-price list. A missing key means "never
+   * visited".
+   */
+  lastVisitedDayByCity?: Record<CityId, number>
 }

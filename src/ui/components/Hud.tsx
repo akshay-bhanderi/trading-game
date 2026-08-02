@@ -56,8 +56,10 @@
  * ---------------------------------------------------------------------------
  * T074 (Phase 17): bottom-bar + menu-button icons → text labels
  * ---------------------------------------------------------------------------
- *   - The 8 `.hud-bottom` buttons (Bank/Newspaper/Stay/Travel/Market/
- *     Warehouse/Real Estate/Aviation) and `.hud-menu-btn` now render their
+ *   - The `.hud-bottom` buttons (Bank/Newspaper/Stay/Travel/Market/
+ *     Warehouse/Real Estate/Aviation/Accountant — a 9th, Accountant, added
+ *     2026-08 per user request to give CA hiring its own tab beside
+ *     Aviation instead of living inside Bank) and `.hud-menu-btn` now render their
  *     `aria-label` string as visible text instead of an icon glyph/emoji —
  *     user-directed change, see tasks/phase-17-hud-text-buttons.md. This
  *     orphaned `BankIcon`/`CompassIcon`/`SkylineIcon`/`BedIcon`/`MenuIcon`
@@ -77,6 +79,7 @@ export type PopupKind =
   | 'warehouse'
   | 'realestate'
   | 'aviation'
+  | 'ca'
   | 'menu'
   | null
 
@@ -173,6 +176,9 @@ export default function Hud({
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('aviation')} aria-label="Aviation">
           Aviation
+        </button>
+        <button className="hud-icon-btn" onClick={() => onOpen('ca')} aria-label="Accountant">
+          Accountant
         </button>
       </div>
 

@@ -252,7 +252,7 @@
 import { CONFIG } from './config'
 import { calcWarehouseAnnualBill } from './warehouse'
 import { computeHotelLicenseFeeOwed } from './hotel'
-import type { BankAccount, CATier, CityId, GameState, TaxRecord } from './types'
+import type { CATier, GameState, TaxRecord } from './types'
 
 /**
  * Applies the active CA tier's rate/profit-cap/above-cap formula to a
@@ -343,20 +343,13 @@ export function runYearEnd(state: GameState): GameState {
   const cashAfterTax = state.cash - taxCashPayment
   taxRemaining -= taxCashPayment
 
-  // Step 3b: deduct any remainder from deposits, city by city, in
-  // `Object.keys` order (see file header).
-  const bankAccountsAfterTax: Record<CityId, BankAccount> = { ...state.bankAccounts }
-  if (taxRemaining > 0) {
-    for (const cityId of Object.keys(state.bankAccounts)) {
-      if (taxRemaining <= 0) break
-      const account = state.bankAccounts[cityId]
-      if (!account || account.depositBalance <= 0) continue
-
-      const depositPayment = Math.min(account.depositBalance, taxRemaining)
-      bankAccountsAfterTax[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
-      taxRemaining -= depositPayment
-    }
-  }
+  // Step 3b: deduct any remainder from the pooled global deposit balance
+  // (single value since the 2026-08 bank redesign — no longer a per-city
+  // loop; see bank/deposits.ts's file header).
+  const depositBalanceStart = state.deposit ?? 0
+  const taxDepositPayment = Math.min(depositBalanceStart, taxRemaining)
+  const depositAfterTax = depositBalanceStart - taxDepositPayment
+  taxRemaining -= taxDepositPayment
 
   const taxShortfall = taxRemaining
 
@@ -379,18 +372,9 @@ export function runYearEnd(state: GameState): GameState {
   const cashAfterHotelFee = cashAfterTax - hotelFeeCashPayment
   hotelFeeRemaining -= hotelFeeCashPayment
 
-  const bankAccountsAfterHotelFee: Record<CityId, BankAccount> = { ...bankAccountsAfterTax }
-  if (hotelFeeRemaining > 0) {
-    for (const cityId of Object.keys(bankAccountsAfterTax)) {
-      if (hotelFeeRemaining <= 0) break
-      const account = bankAccountsAfterTax[cityId]
-      if (!account || account.depositBalance <= 0) continue
-
-      const depositPayment = Math.min(account.depositBalance, hotelFeeRemaining)
-      bankAccountsAfterHotelFee[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
-      hotelFeeRemaining -= depositPayment
-    }
-  }
+  const hotelFeeDepositPayment = Math.min(depositAfterTax, hotelFeeRemaining)
+  const depositAfterHotelFee = depositAfterTax - hotelFeeDepositPayment
+  hotelFeeRemaining -= hotelFeeDepositPayment
 
   const hotelFeeShortfall = hotelFeeRemaining
   const hotelLicenseFeesPaid = hotelLicenseFeeOwed - hotelFeeShortfall
@@ -438,18 +422,9 @@ export function runYearEnd(state: GameState): GameState {
   const cashAfterWarehouseBill = cashAfterHotelFee - warehouseCashPayment
   warehouseRemaining -= warehouseCashPayment
 
-  const bankAccountsAfterWarehouseBill: Record<CityId, BankAccount> = { ...bankAccountsAfterHotelFee }
-  if (warehouseRemaining > 0) {
-    for (const cityId of Object.keys(bankAccountsAfterHotelFee)) {
-      if (warehouseRemaining <= 0) break
-      const account = bankAccountsAfterHotelFee[cityId]
-      if (!account || account.depositBalance <= 0) continue
-
-      const depositPayment = Math.min(account.depositBalance, warehouseRemaining)
-      bankAccountsAfterWarehouseBill[cityId] = { ...account, depositBalance: account.depositBalance - depositPayment }
-      warehouseRemaining -= depositPayment
-    }
-  }
+  const warehouseDepositPayment = Math.min(depositAfterHotelFee, warehouseRemaining)
+  const depositAfterWarehouseBill = depositAfterHotelFee - warehouseDepositPayment
+  warehouseRemaining -= warehouseDepositPayment
 
   const warehouseShortfall = warehouseRemaining
   let newWarehouseMaintenanceDebt = state.warehouseMaintenanceDebt ?? null
@@ -464,7 +439,7 @@ export function runYearEnd(state: GameState): GameState {
   return {
     ...state,
     cash: cashAfterWarehouseBill,
-    bankAccounts: bankAccountsAfterWarehouseBill,
+    deposit: depositAfterWarehouseBill,
     taxDebt: newTaxDebt,
     warehouseMaintenanceDebt: newWarehouseMaintenanceDebt,
     taxHistory: [...state.taxHistory, record],

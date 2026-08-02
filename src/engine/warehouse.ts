@@ -549,6 +549,127 @@ export function withdrawGoods(state: GameState, cityId: CityId, goodId: GoodId, 
 }
 
 // ---------------------------------------------------------------------------
+// Market <-> Warehouse direct trading (user-requested, 2026-08)
+// ---------------------------------------------------------------------------
+// Lets the Market screen buy straight into a city's warehouse, or sell
+// straight out of it, without manually shuttling goods through cargo first.
+// Mirror trade.ts's `buy`/`sell` almost exactly (same validation shape, same
+// cash/cumulativeTradeVolume/realizedProfitThisFiscalYear accounting — a
+// warehouse sale realizes profit exactly like a cargo sale per §10, and a
+// warehouse purchase spends real cash exactly like a cargo purchase), just
+// targeting `state.warehouseGoods[cityId]` instead of `state.cargo`, with an
+// ADDITIONAL warehouse-capacity check on the buy side (mirroring
+// `storeGoods`'s capacity check above) since a warehouse, unlike cargo, has
+// its own separate capacity ceiling. Both require physical presence
+// (`state.currentCity === cityId`) — same "no remote trading, ever" rule
+// §14/§6 already apply to every other warehouse/market action.
+
+/**
+ * Buys `qty` units of `goodId` at `unitPrice` directly into `cityId`'s
+ * warehouse (never touching cargo).
+ *
+ * Validates:
+ *   - `state.currentCity === cityId`
+ *   - `qty > 0`
+ *   - `state.cash >= qty * unitPrice`
+ *   - the city has at least one warehouse floor built
+ *   - `warehouseGoodsUsed(state, cityId) + qty <= warehouseCapacity(state, cityId)`
+ *
+ * On success: deducts `qty * unitPrice` from cash, appends a new FIFO lot to
+ * `state.warehouseGoods[cityId][goodId]`, and increments
+ * `state.cumulativeTradeVolume` by the same amount `trade.ts`'s `buy` would
+ * (a purchase is a purchase regardless of destination).
+ *
+ * Rejected (returns the identical `state` reference, unchanged) when any
+ * validation fails.
+ */
+export function buyIntoWarehouse(state: GameState, cityId: CityId, goodId: GoodId, qty: number, unitPrice: number): GameState {
+  if (state.currentCity !== cityId) return state
+  if (qty <= 0) return state
+
+  const cost = qty * unitPrice
+  if (state.cash < cost) return state
+
+  const floorsBuilt = state.warehouses?.[cityId]?.floorsBuilt ?? 0
+  if (floorsBuilt <= 0) return state
+
+  const capacity = warehouseCapacity(state, cityId)
+  if (warehouseGoodsUsed(state, cityId) + qty > capacity) return state
+
+  const cityWarehouseGoods = state.warehouseGoods?.[cityId] ?? {}
+  const existing = cityWarehouseGoods[goodId]
+  const lots: CargoLot[] = existing ? [...existing.lots, { qty, unitCost: unitPrice }] : [{ qty, unitCost: unitPrice }]
+
+  const holding: CargoHolding = {
+    goodId,
+    qty: sumLots(lots),
+    avgBuyCost: weightedAvgCost(lots),
+    lots,
+  }
+
+  return {
+    ...state,
+    cash: state.cash - cost,
+    warehouseGoods: { ...state.warehouseGoods, [cityId]: { ...cityWarehouseGoods, [goodId]: holding } },
+    cumulativeTradeVolume: state.cumulativeTradeVolume + cost,
+  }
+}
+
+/**
+ * Sells `qty` units of `goodId` at `unitPrice` directly out of `cityId`'s
+ * warehouse (never touching cargo).
+ *
+ * Validates:
+ *   - `state.currentCity === cityId`
+ *   - `qty > 0`
+ *   - at least `qty` units of `goodId` are stored in that warehouse
+ *
+ * On success: consumes `qty` units FIFO from
+ * `state.warehouseGoods[cityId][goodId]`'s lots (removing the entry entirely
+ * if fully emptied), adds `qty * unitPrice` to cash, increments
+ * `state.cumulativeTradeVolume`, and increments
+ * `state.realizedProfitThisFiscalYear` by proceeds minus the consumed lots'
+ * cost basis — identical FIFO tax accounting to `trade.ts`'s `sell` (§10
+ * doesn't distinguish where the goods physically sat before the sale).
+ *
+ * Rejected (returns the identical `state` reference, unchanged) when any
+ * validation fails.
+ */
+export function sellFromWarehouse(state: GameState, cityId: CityId, goodId: GoodId, qty: number, unitPrice: number): GameState {
+  if (state.currentCity !== cityId) return state
+  if (qty <= 0) return state
+
+  const holding = state.warehouseGoods?.[cityId]?.[goodId]
+  if (!holding || holding.qty < qty) return state
+
+  const { consumedLots, remainingLots } = consumeFifo(holding.lots, qty)
+  const consumedCostBasis = consumedLots.reduce((sum, lot) => sum + lot.qty * lot.unitCost, 0)
+
+  const cityWarehouseGoods = { ...(state.warehouseGoods?.[cityId] ?? {}) }
+  if (remainingLots.length === 0) {
+    delete cityWarehouseGoods[goodId]
+  } else {
+    cityWarehouseGoods[goodId] = {
+      goodId,
+      qty: sumLots(remainingLots),
+      avgBuyCost: weightedAvgCost(remainingLots),
+      lots: remainingLots,
+    }
+  }
+
+  const proceeds = qty * unitPrice
+  const realizedProfit = proceeds - consumedCostBasis
+
+  return {
+    ...state,
+    cash: state.cash + proceeds,
+    warehouseGoods: { ...state.warehouseGoods, [cityId]: cityWarehouseGoods },
+    cumulativeTradeVolume: state.cumulativeTradeVolume + proceeds,
+    realizedProfitThisFiscalYear: (state.realizedProfitThisFiscalYear ?? 0) + realizedProfit,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Warehouse-maintenance-shortfall debt accrual/repayment (T049) — mirrors
 // tax.ts's `accrueTaxDebtInterest`/`repayTaxDebt` almost exactly, at the
 // Small-bank daily rate instead of the Huge-rate tax penalty (see file

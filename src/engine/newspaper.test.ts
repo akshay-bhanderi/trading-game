@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from './rng'
 import { CONFIG } from './config'
+import { CITIES } from './data/cities'
+import { GOODS } from './data/goods'
 import { scheduleEvent } from './events/eventEngine'
 import { resolveDueEvents } from './events/resolution'
 import { generateDailyPaper } from './newspaper'
 import type { GameState } from './types'
+
+/** Every good/city unlocked — used by tests below that care about queue/
+ * pinning/text mechanics, not about the 2026-08 "only report on unlocked
+ * goods/cities" relevance filter (see newspaper.ts's `isEventRelevant`).
+ * Guarantees a randomly-scheduled event is never silently dropped as
+ * irrelevant, isolating the mechanic each of those tests actually means to
+ * exercise. */
+const ALL_GOOD_IDS = GOODS.map((g) => g.id)
+const ALL_CITY_IDS = CITIES.map((c) => c.id)
 
 /**
  * Minimal-but-valid `GameState` builder, following the same pattern already
@@ -65,12 +76,12 @@ describe('generateDailyPaper — basic shape', () => {
     expect(state).toEqual(snapshot)
   })
 
-  it('across many seeds, the discretionary count always stays within the configured 2-4 range', () => {
+  it('across many seeds, the discretionary count always stays within the configured min-max range', () => {
     for (let seed = 0; seed < 100; seed++) {
       const state = makeState({ day: 3 })
       const { stories } = generateDailyPaper(state, createRng(seed))
-      expect(stories.length).toBeGreaterThanOrEqual(2)
-      expect(stories.length).toBeLessThanOrEqual(4)
+      expect(stories.length).toBeGreaterThanOrEqual(CONFIG.events.storiesPerDayMin)
+      expect(stories.length).toBeLessThanOrEqual(CONFIG.events.storiesPerDayMax)
     }
   })
 })
@@ -103,7 +114,9 @@ describe('generateDailyPaper — resolution stories (non-negotiable, T018 accept
   })
 
   it('resolution stories are pinned first in the stories array', () => {
-    let state = makeState({ day: 10 })
+    // Full unlocks — see ALL_GOOD_IDS/ALL_CITY_IDS doc comment: this test
+    // verifies pinning ORDER, not the 2026-08 unlocked-relevance filter.
+    let state = makeState({ day: 10, unlockedGoodIds: ALL_GOOD_IDS, unlockedCityIds: ALL_CITY_IDS })
     const rng = createRng(2)
 
     const { updatedState: scheduledState, event } = scheduleEvent(state, rng)
@@ -125,7 +138,10 @@ describe('generateDailyPaper — resolution stories (non-negotiable, T018 accept
   })
 
   it('a fired event and a fizzled event produce CLEARLY DIFFERENT resolution text', () => {
-    let state = makeState({ day: 10 })
+    // Full unlocks — see ALL_GOOD_IDS/ALL_CITY_IDS doc comment: this test
+    // verifies fired-vs-fizzled TEXT, not the 2026-08 unlocked-relevance
+    // filter.
+    let state = makeState({ day: 10, unlockedGoodIds: ALL_GOOD_IDS, unlockedCityIds: ALL_CITY_IDS })
     const rng = createRng(3)
 
     // Schedule two events; force resolution outcomes by direct construction
@@ -160,8 +176,13 @@ describe('generateDailyPaper — resolution stories (non-negotiable, T018 accept
   })
 
   it('OVER MANY SIMULATED DAYS: resolution stories appear in EXACT 1:1 correspondence with resolved events — no more, no less, none missed', () => {
+    // Full unlocks — see ALL_GOOD_IDS/ALL_CITY_IDS doc comment: this test
+    // verifies the queue's 1:1 accounting, not the 2026-08 unlocked-
+    // relevance filter (a separate concern, covered by its own describe
+    // block below) or the staleness-drop (every day is processed here, so
+    // nothing ever goes stale — see the 3-day-window test below for that).
     const rng = createRng(2026)
-    let state = makeState({ day: 1 })
+    let state = makeState({ day: 1, unlockedGoodIds: ALL_GOOD_IDS, unlockedCityIds: ALL_CITY_IDS })
 
     const TOTAL_DAYS = 300
     let totalResolved = 0
@@ -212,6 +233,87 @@ describe('generateDailyPaper — resolution stories (non-negotiable, T018 accept
     // Sanity: this run actually exercised the pipeline with a meaningful
     // number of resolved events, not zero.
     expect(totalResolved).toBeGreaterThan(10)
+  })
+})
+
+describe('generateDailyPaper — unlocked-relevance filter & staleness drop (2026-08 user-requested)', () => {
+  /** Minimal-but-valid `Event`, matching a resolved (`resolved: true, fired:
+   * true`) price event — everything the two tests below need to build a
+   * `pendingResolutions` entry directly, without going through
+   * `scheduleEvent`'s randomness. */
+  function makeResolvedEvent(overrides: Partial<import('./types').Event> = {}): import('./types').Event {
+    return {
+      id: 'evt-1',
+      typeId: 'droughtCropFailure',
+      affectedGoodIds: ['grain'],
+      scope: { kind: 'global' },
+      multiplierMin: 1.6,
+      multiplierMax: 2.2,
+      durationDaysMin: 4,
+      durationDaysMax: 6,
+      hiddenTruth: true,
+      scheduledFireDay: 10,
+      createdOnDay: 7,
+      resolved: true,
+      fired: true,
+      ...overrides,
+    }
+  }
+
+  it('drops a resolution for an event whose only affected good is NOT unlocked — no story, not held for later', () => {
+    // Default makeState only unlocks grain/cotton/iron — 'steel' is not.
+    const event = makeResolvedEvent({ affectedGoodIds: ['steel'] })
+    const state = makeState({
+      day: 11,
+      pendingResolutions: [{ event, fired: true }],
+    })
+
+    const { state: afterPaper, stories } = generateDailyPaper(state, createRng(1))
+
+    expect(stories.some((s) => s.isResolution)).toBe(false)
+    // Dropped, not queued for a future day either.
+    expect(afterPaper.pendingResolutions).toHaveLength(0)
+  })
+
+  it('still reports a resolution for an event whose affected good IS unlocked', () => {
+    const event = makeResolvedEvent({ affectedGoodIds: ['grain'] })
+    const state = makeState({
+      day: 11,
+      pendingResolutions: [{ event, fired: true }],
+    })
+
+    const { stories } = generateDailyPaper(state, createRng(1))
+
+    expect(stories.filter((s) => s.isResolution)).toHaveLength(1)
+  })
+
+  it('drops a resolution older than the configured staleness window instead of showing it', () => {
+    const staleDay = 10 // resolved on day 10
+    const today = staleDay + CONFIG.events.resolutionStalenessMaxDays + 1 // well past the window
+    const event = makeResolvedEvent({ affectedGoodIds: ['grain'], scheduledFireDay: staleDay })
+    const state = makeState({
+      day: today,
+      pendingResolutions: [{ event, fired: true }],
+    })
+
+    const { state: afterPaper, stories } = generateDailyPaper(state, createRng(1))
+
+    expect(stories.some((s) => s.isResolution)).toBe(false)
+    expect(afterPaper.pendingResolutions).toHaveLength(0)
+  })
+
+  it('still reports a resolution that is old but within the staleness window', () => {
+    const staleDay = 10
+    const today = staleDay + CONFIG.events.resolutionStalenessMaxDays // exactly at the edge, still allowed
+    const event = makeResolvedEvent({ affectedGoodIds: ['grain'], scheduledFireDay: staleDay })
+    const state = makeState({
+      day: today,
+      pendingResolutions: [{ event, fired: true }],
+    })
+
+    const { stories } = generateDailyPaper(state, createRng(1))
+
+    expect(stories.filter((s) => s.isResolution)).toHaveLength(1)
   })
 })
 

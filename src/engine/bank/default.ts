@@ -333,10 +333,9 @@ export function updateDefaultTrigger(state: GameState): GameState {
  * the file header for the full rationale.
  */
 export function calcSurrenderSeizedValue(state: GameState): number {
-  let totalDeposits = 0
-  for (const cityId in state.bankAccounts) {
-    totalDeposits += state.bankAccounts[cityId]?.depositBalance ?? 0
-  }
+  // 2026-08 bank redesign: a single pooled balance — see
+  // bank/deposits.ts's file header.
+  const totalDeposits = state.deposit ?? 0
   const cargoValue = calcCargoValueAtLastKnownPrice(state)
   return (totalDeposits + cargoValue) * CONFIG.banking.default.surrender.seizureValueFraction
 }
@@ -355,12 +354,15 @@ function resolveSurrender(state: GameState): GameState {
   for (const cityId in state.bankAccounts) {
     const account = state.bankAccounts[cityId]
     if (!account) continue
-    clearedAccounts[cityId] = { ...account, depositBalance: 0, loan: null }
+    clearedAccounts[cityId] = { ...account, loan: null }
   }
 
   return {
     ...state,
     bankAccounts: clearedAccounts,
+    // 2026-08 bank redesign: zero the single pooled balance directly rather
+    // than each account's own depositBalance — see bank/deposits.ts.
+    deposit: 0,
     cargo: {},
     repaymentRecord: clamp(
       state.repaymentRecord + repaymentRecordPenalty,

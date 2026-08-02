@@ -44,9 +44,10 @@
  * "Penthouse" floor-1/floor-6 naming.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { CONFIG } from '../../engine/config'
+import { cargoUsed } from '../../engine/cargo'
 import { GOODS } from '../../engine/data/goods'
 import {
   calcWarehouseAnnualBill,
@@ -62,6 +63,135 @@ function goodName(goodId: GoodId): string {
   return GOODS.find((g) => g.id === goodId)?.name ?? goodId
 }
 
+/**
+ * Store/Withdraw detail panel (user-requested redesign, 2026-08) — mirrors
+ * TradePanel.tsx's Buy/Sell shape exactly (tabs, -/+ stepper, range slider,
+ * Max button) instead of the old two stacked dropdown+qty rows. Deliberately
+ * a LOCAL component (not a shared one with TradePanel) since the two differ
+ * just enough — different tab labels, two independently-capped maxes, no
+ * price/total line — that sharing would need more props than it saves.
+ */
+type WarehouseMode = 'store' | 'withdraw'
+
+function WarehouseTradePanel({
+  goodId,
+  cargoQty,
+  storedQty,
+  maxStore,
+  maxWithdraw,
+  onStore,
+  onWithdraw,
+  onBack,
+}: {
+  goodId: GoodId
+  cargoQty: number
+  storedQty: number
+  maxStore: number
+  maxWithdraw: number
+  onStore: (qty: number) => void
+  onWithdraw: (qty: number) => void
+  onBack: () => void
+}) {
+  const [mode, setMode] = useState<WarehouseMode>(maxStore > 0 ? 'store' : 'withdraw')
+  const [qty, setQty] = useState(0)
+
+  const max = mode === 'store' ? maxStore : maxWithdraw
+
+  useEffect(() => {
+    setQty((q) => Math.min(q, max))
+  }, [max])
+
+  function setClamped(next: number) {
+    setQty(Math.max(0, Math.min(max, Math.round(next))))
+  }
+
+  const canConfirm = qty > 0 && qty <= max
+
+  return (
+    <div className="trade-panel">
+      <button className="secondary trade-panel-back" onClick={onBack}>
+        ← Back
+      </button>
+
+      <div className="trade-panel-title">
+        <strong>{goodName(goodId)}</strong>
+      </div>
+
+      <div className="row muted">
+        <span>Carried: {cargoQty}</span>
+        <span>Stored here: {storedQty}</span>
+      </div>
+
+      <div className="trade-tabs">
+        <button
+          className={mode === 'store' ? 'trade-tab trade-tab--active' : 'trade-tab secondary'}
+          disabled={maxStore < 1}
+          onClick={() => setMode('store')}
+        >
+          Store
+        </button>
+        <button
+          className={mode === 'withdraw' ? 'trade-tab trade-tab--active trade-tab--sell' : 'trade-tab secondary'}
+          disabled={maxWithdraw < 1}
+          onClick={() => setMode('withdraw')}
+        >
+          Withdraw
+        </button>
+      </div>
+
+      {max < 1 ? (
+        <p className="muted">
+          {mode === 'store' ? 'Nothing carried, or the warehouse is full.' : 'Nothing stored here to withdraw.'}
+        </p>
+      ) : (
+        <>
+          <div className="trade-qty-row">
+            <button className="secondary trade-qty-btn" disabled={qty <= 0} onClick={() => setClamped(qty - 1)}>
+              −
+            </button>
+            <input
+              className="trade-qty-input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={max}
+              value={qty}
+              onChange={(e) => setClamped(Number(e.target.value))}
+            />
+            <button className="secondary trade-qty-btn" disabled={qty >= max} onClick={() => setClamped(qty + 1)}>
+              +
+            </button>
+            <button className="secondary" onClick={() => setClamped(max)}>
+              Max
+            </button>
+          </div>
+
+          <input
+            className="trade-qty-slider"
+            type="range"
+            min={0}
+            max={max}
+            value={qty}
+            onChange={(e) => setClamped(Number(e.target.value))}
+          />
+
+          <button
+            className={mode === 'withdraw' ? 'trade-confirm trade-confirm--sell' : 'trade-confirm'}
+            disabled={!canConfirm}
+            onClick={() => {
+              if (mode === 'store') onStore(qty)
+              else onWithdraw(qty)
+              onBack()
+            }}
+          >
+            {mode === 'store' ? `Store ${qty}` : `Withdraw ${qty}`}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function WarehouseScreen() {
   const game = useGameStore((s) => s.game)
   const buildWarehouseFloor = useGameStore((s) => s.buildWarehouseFloor)
@@ -70,10 +200,7 @@ export default function WarehouseScreen() {
   const buyWarehouseInsurance = useGameStore((s) => s.buyWarehouseInsurance)
   const sellWarehouse = useGameStore((s) => s.sellWarehouse)
 
-  const [storeGoodId, setStoreGoodId] = useState<GoodId | ''>('')
-  const [storeQty, setStoreQty] = useState('')
-  const [withdrawGoodId, setWithdrawGoodId] = useState<GoodId | ''>('')
-  const [withdrawQty, setWithdrawQty] = useState('')
+  const [selectedGoodId, setSelectedGoodId] = useState<GoodId | null>(null)
 
   if (!game) return null
 
@@ -87,12 +214,19 @@ export default function WarehouseScreen() {
   const storedValue = calcWarehouseGoodsValue(game, cityId)
   const annualBill = calcWarehouseAnnualBill(game)
 
-  // Goods currently in cargo (storable) / currently stored here (withdrawable).
-  const storableGoods = Object.keys(game.cargo).filter((goodId) => (game.cargo[goodId]?.qty ?? 0) > 0)
+  // Goods currently in cargo (storable) / currently stored here (withdrawable) —
+  // merged into ONE list so every good with either a carried or stored qty
+  // shows up as a single tappable row (Market-list pattern), rather than the
+  // old two separate dropdown+qty rows.
   const cityWarehouseGoods = game.warehouseGoods?.[cityId] ?? {}
-  const withdrawableGoods = Object.keys(cityWarehouseGoods).filter(
-    (goodId) => (cityWarehouseGoods[goodId]?.qty ?? 0) > 0,
+  const relevantGoodIds = Array.from(
+    new Set([
+      ...Object.keys(game.cargo).filter((goodId) => (game.cargo[goodId]?.qty ?? 0) > 0),
+      ...Object.keys(cityWarehouseGoods).filter((goodId) => (cityWarehouseGoods[goodId]?.qty ?? 0) > 0),
+    ]),
   )
+  const remainingWarehouseCapacity = Math.max(0, capacity - used)
+  const remainingCargoCapacity = Math.max(0, game.cargoCapacity - cargoUsed(game))
 
   const nextFloor = floorsBuilt < CONFIG.warehouse.maxFloors ? floorsBuilt + 1 : null
 
@@ -151,87 +285,43 @@ export default function WarehouseScreen() {
 
       {floorsBuilt > 0 && (
         <>
-          <div className="card">
-            <h2>Store / Withdraw</h2>
-
-            <div className="row muted">
-              <span>Stored value (last-known local price)</span>
-              <strong>${storedValue.toFixed(0)}</strong>
-            </div>
-
-            <p className="muted">Store goods from cargo here.</p>
-            <div className="bank-amount-row">
-              <select
-                className="trade-qty-input"
-                value={storeGoodId}
-                onChange={(e) => setStoreGoodId(e.target.value)}
-              >
-                <option value="">Select good…</option>
-                {storableGoods.map((goodId) => (
-                  <option key={goodId} value={goodId}>
-                    {goodName(goodId)} ({game.cargo[goodId]?.qty ?? 0} carried)
-                  </option>
-                ))}
-              </select>
-              <input
-                className="trade-qty-input"
-                type="number"
-                min={0}
-                placeholder="Qty"
-                value={storeQty}
-                onChange={(e) => setStoreQty(e.target.value)}
+          {selectedGoodId ? (
+            <div className="card">
+              <WarehouseTradePanel
+                goodId={selectedGoodId}
+                cargoQty={game.cargo[selectedGoodId]?.qty ?? 0}
+                storedQty={cityWarehouseGoods[selectedGoodId]?.qty ?? 0}
+                maxStore={Math.min(game.cargo[selectedGoodId]?.qty ?? 0, remainingWarehouseCapacity)}
+                maxWithdraw={Math.min(cityWarehouseGoods[selectedGoodId]?.qty ?? 0, remainingCargoCapacity)}
+                onStore={(qty) => storeGoods(cityId, selectedGoodId, qty)}
+                onWithdraw={(qty) => withdrawGoods(cityId, selectedGoodId, qty)}
+                onBack={() => setSelectedGoodId(null)}
               />
-              <div className="bank-amount-row-buttons">
-                <button
-                  disabled={!storeGoodId}
-                  onClick={() => {
-                    const qty = Number(storeQty)
-                    if (storeGoodId && qty > 0) storeGoods(cityId, storeGoodId, qty)
-                    setStoreQty('')
-                  }}
-                >
-                  Store
-                </button>
-              </div>
             </div>
-
-            <p className="muted">Withdraw stored goods back into cargo.</p>
-            <div className="bank-amount-row">
-              <select
-                className="trade-qty-input"
-                value={withdrawGoodId}
-                onChange={(e) => setWithdrawGoodId(e.target.value)}
-              >
-                <option value="">Select good…</option>
-                {withdrawableGoods.map((goodId) => (
-                  <option key={goodId} value={goodId}>
-                    {goodName(goodId)} ({cityWarehouseGoods[goodId]?.qty ?? 0} stored)
-                  </option>
-                ))}
-              </select>
-              <input
-                className="trade-qty-input"
-                type="number"
-                min={0}
-                placeholder="Qty"
-                value={withdrawQty}
-                onChange={(e) => setWithdrawQty(e.target.value)}
-              />
-              <div className="bank-amount-row-buttons">
-                <button
-                  className="secondary"
-                  disabled={!withdrawGoodId}
-                  onClick={() => {
-                    const qty = Number(withdrawQty)
-                    if (withdrawGoodId && qty > 0) withdrawGoods(cityId, withdrawGoodId, qty)
-                    setWithdrawQty('')
-                  }}
-                >
-                  Withdraw
-                </button>
+          ) : (
+            <div className="card">
+              <h2>Store / Withdraw</h2>
+              <div className="row muted">
+                <span>Stored value (last-known local price)</span>
+                <strong>${storedValue.toFixed(0)}</strong>
               </div>
+              {relevantGoodIds.length === 0 ? (
+                <p className="muted">Carry goods here, or store some, to manage them.</p>
+              ) : (
+                <div className="market-list">
+                  {relevantGoodIds.map((goodId) => (
+                    <button className="market-row" key={goodId} onClick={() => setSelectedGoodId(goodId)}>
+                      <span className="market-row-name">{goodName(goodId)}</span>
+                      <span className="market-row-prices">
+                        <span className="market-buy-price">{game.cargo[goodId]?.qty ?? 0} carried</span>
+                        <span className="market-sell-neutral">{cityWarehouseGoods[goodId]?.qty ?? 0} stored</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           <div className="card">
             <h2>Insurance</h2>

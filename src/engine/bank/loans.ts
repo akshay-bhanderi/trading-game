@@ -186,9 +186,7 @@ export function takeLoan(state: GameState, cityId: CityId, amount: number): Game
     termDays: CONFIG.banking.loanTermDays,
   }
 
-  const account: BankAccount = existing
-    ? { ...existing, loan }
-    : { cityId, depositBalance: 0, loan }
+  const account: BankAccount = existing ? { ...existing, loan } : { cityId, loan }
 
   return {
     ...state,

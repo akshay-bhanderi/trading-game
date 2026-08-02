@@ -63,19 +63,31 @@ export default function RealEstateScreen() {
                 )}
 
                 <div className="nav-grid">
-                  {nextTierIndex !== null && nextCost !== null && (
-                    <button onClick={() => buildOrUpgradeHotel(currentCity.id)}>
-                      {tier === null ? 'Build' : 'Upgrade to'} {getTierName(nextTierIndex)} ($
-                      {nextCost.toLocaleString()})
-                    </button>
-                  )}
-                  {tier !== null && (
-                    <button
-                      className="secondary"
-                      onClick={() => sellHotel(currentCity.id)}
-                    >
-                      Sell (${(cumulativeInvested(currentCity, tier) * CONFIG.hotel.sellBackFraction).toLocaleString()})
-                    </button>
+                  {tier === null ? (
+                    nextTierIndex !== null &&
+                    nextCost !== null && (
+                      <button onClick={() => buildOrUpgradeHotel(currentCity.id)}>
+                        Build {getTierName(nextTierIndex)} (${nextCost.toLocaleString()})
+                      </button>
+                    )
+                  ) : (
+                    <>
+                      {/* Upgrade always occupies this first slot — a disabled placeholder at max
+                          tier, never removed — so Sell (second slot, below) never slides into
+                          this position and gets mis-tapped as if it were Upgrade. */}
+                      {nextTierIndex !== null && nextCost !== null ? (
+                        <button onClick={() => buildOrUpgradeHotel(currentCity.id)}>
+                          Upgrade to {getTierName(nextTierIndex)} (${nextCost.toLocaleString()})
+                        </button>
+                      ) : (
+                        <button className="secondary" disabled>
+                          Max tier reached
+                        </button>
+                      )}
+                      <button className="secondary" onClick={() => sellHotel(currentCity.id)}>
+                        Sell (${(cumulativeInvested(currentCity, tier) * CONFIG.hotel.sellBackFraction).toLocaleString()})
+                      </button>
+                    </>
                   )}
                 </div>
               </>

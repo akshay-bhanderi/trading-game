@@ -72,6 +72,11 @@ export function createNewGame(difficulty: Difficulty, seed: number): GameState {
     // T070: the very first city (no travel yet) rolls a flat 50/50 — see
     // tasks/phase-14-city-background-scenes.md's day/night design note.
     currentCityIsNight: rollIsNight(createCityNightRng(seed, 'start'), 0.5),
+    // User-requested (2026-08, Travel screen redesign) — seeds the starting
+    // city so it doesn't read as "Never visited" the moment the player
+    // travels away from it. See actions/travel.ts's `advanceTravelDay` for
+    // where every later arrival stamps this same field.
+    lastVisitedDayByCity: { [config.startingCityId]: 0 },
   }
 
   return advanceDay(rawState)

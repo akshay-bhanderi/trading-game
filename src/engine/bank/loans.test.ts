@@ -56,7 +56,6 @@ describe('takeLoan', () => {
     expect(result.cash).toBe(1_500)
     expect(result.bankAccounts['farrow']).toEqual({
       cityId: 'farrow',
-      depositBalance: 0,
       loan: { principal: 1_000, accruedInterest: 0, startDay: 1, termDays: CONFIG.banking.loanTermDays },
     })
   })
@@ -114,7 +113,6 @@ describe('takeLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 500, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -131,9 +129,9 @@ describe('takeLoan', () => {
       cash: 100,
       rankCache: { value: 5, computedOnDay: 0 }, // generous cap, not the blocker under test
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: activeLoan },
-        saltmere: { cityId: 'saltmere', depositBalance: 0, loan: activeLoan },
-        copperfell: { cityId: 'copperfell', depositBalance: 0, loan: activeLoan },
+        farrow: { cityId: 'farrow', loan: activeLoan },
+        saltmere: { cityId: 'saltmere', loan: activeLoan },
+        copperfell: { cityId: 'copperfell', loan: activeLoan },
       },
     })
 
@@ -150,9 +148,9 @@ describe('takeLoan', () => {
       cash: 0,
       rankCache: { value: 5, computedOnDay: 0 },
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: null },
-        saltmere: { cityId: 'saltmere', depositBalance: 0, loan: activeLoan },
-        copperfell: { cityId: 'copperfell', depositBalance: 0, loan: activeLoan },
+        farrow: { cityId: 'farrow', loan: null },
+        saltmere: { cityId: 'saltmere', loan: activeLoan },
+        copperfell: { cityId: 'copperfell', loan: activeLoan },
       },
     })
 
@@ -172,7 +170,6 @@ describe('accrueLoanInterest', () => {
       bankAccounts: {
         ironvale: {
           cityId: 'ironvale',
-          depositBalance: 0,
           loan: { principal: 5_000, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -197,7 +194,6 @@ describe('accrueLoanInterest', () => {
       bankAccounts: {
         ironvale: {
           cityId: 'ironvale',
-          depositBalance: 0,
           loan: { principal: 5_000, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -211,7 +207,7 @@ describe('accrueLoanInterest', () => {
 
   it('skips accounts with no active loan, and returns the identical state reference when nothing to accrue', () => {
     const state = makeState({
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 1_000, loan: null } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: null } },
     })
     const result = accrueLoanInterest(state)
 
@@ -223,7 +219,6 @@ describe('accrueLoanInterest', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 1_000, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -242,7 +237,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 500, accruedInterest: 50, startDay: 1, termDays: 60 },
         },
       },
@@ -269,7 +263,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 500, accruedInterest: 20, startDay: 1, termDays: 60 }, // term ends day 61
         },
       },
@@ -291,7 +284,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 500, accruedInterest: 20, startDay: 1, termDays: 60 },
         },
       },
@@ -312,7 +304,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 500, accruedInterest: 20, startDay: 1, termDays: 60 },
         },
       },
@@ -333,7 +324,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -349,7 +339,7 @@ describe('repayLoan', () => {
     const state = makeState({
       currentCity: 'farrow',
       cash: 1_000,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: null } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: null } },
     })
     const result = repayLoan(state, 'farrow', 100)
 
@@ -363,7 +353,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         saltmere: {
           cityId: 'saltmere',
-          depositBalance: 0,
           loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -380,7 +369,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -396,7 +384,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -415,7 +402,6 @@ describe('repayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },

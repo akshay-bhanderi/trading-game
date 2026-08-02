@@ -159,15 +159,11 @@ export default function HubScene({ cityId, cityName, isNight }: HubSceneProps) {
         structure.rect(10, 14, postWidth, FLOOR_Y - 14).fill(0x3f2a17)
         structure.rect(STAGE_WIDTH - 10 - postWidth, 14, postWidth, FLOOR_Y - 14).fill(0x3f2a17)
 
-        // A single window, right of the sign (decorative — lets daylight
-        // read against the wall so the room doesn't feel like a flat void).
-        const windowX = STAGE_WIDTH - 90
-        const windowY = 260
-        const windowSize = 64
-        structure.rect(windowX - 4, windowY - 4, windowSize + 8, windowSize + 8).fill(0x2b1c10)
-        structure.rect(windowX, windowY, windowSize, windowSize).fill(0xbcd8e8)
-        structure.rect(windowX + windowSize / 2 - 2, windowY, 4, windowSize).fill(0x2b1c10)
-        structure.rect(windowX, windowY + windowSize / 2 - 2, windowSize, 4).fill(0x2b1c10)
+        // (User-requested removal, 2026-08: the flat 4-pane placeholder
+        // window that used to sit here — a plain light-blue rectangle —
+        // was a leftover from before T070's real per-city background art
+        // existed. It read as an out-of-place old-design element against
+        // the real skylines now rendered underneath, so it's gone.)
 
         // Baseboard trim marking the wall/floor seam.
         structure.rect(0, FLOOR_Y - 6, STAGE_WIDTH, 6).fill(0x1a0f08)
@@ -225,6 +221,10 @@ export default function HubScene({ cityId, cityName, isNight }: HubSceneProps) {
             fontSize: 14,
             fontWeight: 'bold',
             fill: 0xf4ecd8,
+            // User-requested (2026-08): a dark stroke so the name stays
+            // legible against ANY per-city background art — the flat fill
+            // alone could wash out against lighter day skylines.
+            stroke: { color: 0x140a04, width: 3 },
             align: 'center',
           },
         })

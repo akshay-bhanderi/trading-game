@@ -83,13 +83,13 @@ describe('runYearEnd — profitable year', () => {
     expect(result.depositInterestThisFiscalYear).toBe(0)
   })
 
-  it('falls back to draining deposits when cash alone is insufficient, and never goes negative', () => {
+  it('falls back to draining the pooled deposit when cash alone is insufficient, and never goes negative', () => {
     const state = makeState({
       day: 90,
       cash: 1_000,
-      bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 5_000, loan: null },
-      },
+      // 2026-08 bank redesign: a single pooled state.deposit balance, not a
+      // per-city bankAccounts[cityId].depositBalance — see bank/deposits.ts.
+      deposit: 5_000,
       realizedProfitThisFiscalYear: 10_000,
       depositInterestThisFiscalYear: 0,
     })
@@ -98,8 +98,8 @@ describe('runYearEnd — profitable year', () => {
 
     const expectedTax = 0.3 * 10_000 // 3,000
     expect(result.cash).toBe(0) // 1,000 all used
-    // Remaining 2,000 drained from the farrow deposit.
-    expect(result.bankAccounts['farrow']?.depositBalance).toBeCloseTo(5_000 - (expectedTax - 1_000), 6)
+    // Remaining 2,000 drained from the pooled deposit.
+    expect(result.deposit).toBeCloseTo(5_000 - (expectedTax - 1_000), 6)
     expect(result.taxDebt ?? null).toBeNull()
     expect(result.taxHistory[0]?.taxPaid).toBeCloseTo(expectedTax, 6)
     expect(result.taxHistory[0]?.forcedLoanTriggered).toBe(false)
@@ -129,13 +129,11 @@ describe('runYearEnd — profitable year', () => {
 })
 
 describe('runYearEnd — shortfall becomes a forced tax-debt loan', () => {
-  it('drains cash and deposits to exactly 0 and records the exact shortfall as taxDebt.principal', () => {
+  it('drains cash and the pooled deposit to exactly 0 and records the exact shortfall as taxDebt.principal', () => {
     const state = makeState({
       day: 90,
       cash: 1_000,
-      bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 500, loan: null },
-      },
+      deposit: 500,
       realizedProfitThisFiscalYear: 10_000,
       depositInterestThisFiscalYear: 0,
     })
@@ -147,7 +145,7 @@ describe('runYearEnd — shortfall becomes a forced tax-debt loan', () => {
     const expectedShortfall = taxOwed - availableFunds // 1,500
 
     expect(result.cash).toBe(0)
-    expect(result.bankAccounts['farrow']?.depositBalance).toBe(0)
+    expect(result.deposit).toBe(0)
     expect(result.taxDebt).not.toBeNull()
     expect(result.taxDebt?.principal).toBeCloseTo(expectedShortfall, 6)
     expect(result.taxDebt?.accruedInterest).toBe(0)

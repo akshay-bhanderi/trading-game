@@ -48,7 +48,6 @@ function makeCargo(holdings: Record<string, number>): Cargo {
 function makeBankAccount(overrides: Partial<BankAccount> = {}): BankAccount {
   return {
     cityId: 'placeholder-city',
-    depositBalance: 0,
     loan: null,
     ...overrides,
   }
@@ -60,15 +59,14 @@ describe('calcNetWorth', () => {
     expect(calcNetWorth(state)).toBe(12_345)
   })
 
-  it('adds deposits across multiple bank cities to cash when there are still no goods/debt', () => {
+  it('adds the pooled deposit balance to cash when there are still no goods/debt', () => {
+    // 2026-08 bank redesign: a single pooled state.deposit balance, not
+    // summed across per-city bankAccounts — see bank/deposits.ts.
     const state = makeState({
       cash: 1_000,
-      bankAccounts: {
-        farrow: makeBankAccount({ cityId: 'farrow', depositBalance: 500 }),
-        saltmere: makeBankAccount({ cityId: 'saltmere', depositBalance: 250 }),
-      },
+      deposit: 750,
     })
-    expect(calcNetWorth(state)).toBe(1_000 + 500 + 250)
+    expect(calcNetWorth(state)).toBe(1_000 + 750)
   })
 
   it('values carried cargo at the CURRENT city\'s last-known (last-seen) price', () => {
@@ -115,10 +113,10 @@ describe('calcNetWorth', () => {
   it('allows net worth to go negative when outstanding debt exceeds assets (no clamping to 0)', () => {
     const state = makeState({
       cash: 100,
+      deposit: 50,
       bankAccounts: {
         farrow: makeBankAccount({
           cityId: 'farrow',
-          depositBalance: 50,
           loan: { principal: 5_000, accruedInterest: 200, startDay: 1, termDays: 60 },
         }),
       },
@@ -128,10 +126,11 @@ describe('calcNetWorth', () => {
     expect(calcNetWorth(state)).toBe(-5_050)
   })
 
-  it('sums debt across multiple banks with active loans alongside deposits and cargo', () => {
+  it('sums debt across multiple banks with active loans alongside the pooled deposit and cargo', () => {
     const state = makeState({
       currentCity: 'farrow',
       cash: 1_000,
+      deposit: 200,
       cargo: makeCargo({ grain: 4 }),
       priceStates: {
         farrow: {
@@ -148,12 +147,10 @@ describe('calcNetWorth', () => {
       bankAccounts: {
         farrow: makeBankAccount({
           cityId: 'farrow',
-          depositBalance: 200,
           loan: { principal: 300, accruedInterest: 10, startDay: 1, termDays: 60 },
         }),
         saltmere: makeBankAccount({
           cityId: 'saltmere',
-          depositBalance: 0,
           loan: { principal: 100, accruedInterest: 5, startDay: 1, termDays: 60 },
         }),
       },

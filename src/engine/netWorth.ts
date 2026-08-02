@@ -124,15 +124,15 @@ const BASE_PRICE_BY_GOOD_ID: Record<string, number> = Object.fromEntries(
  * `updatePeakNetWorth` — no clamping to 0 anywhere in this file).
  */
 export function calcNetWorth(state: GameState): number {
-  let deposits = 0
+  // 2026-08 bank redesign: a single pooled balance, not summed per city —
+  // see bank/deposits.ts's file header.
+  const deposits = state.deposit ?? 0
+
   let debt = 0
   for (const cityId in state.bankAccounts) {
     const account = state.bankAccounts[cityId]
-    if (!account) continue
-    deposits += account.depositBalance
-    if (account.loan) {
-      debt += account.loan.principal + account.loan.accruedInterest
-    }
+    if (!account?.loan) continue
+    debt += account.loan.principal + account.loan.accruedInterest
   }
 
   const pricesHere = state.priceStates[state.currentCity]

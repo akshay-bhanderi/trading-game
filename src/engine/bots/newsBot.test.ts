@@ -318,7 +318,6 @@ describe('buyIntoRumor — loan-taking under favorable conditions', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 500, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -350,7 +349,6 @@ describe('maybeRepayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 3_000, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },
@@ -372,7 +370,6 @@ describe('maybeRepayLoan', () => {
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 0,
           loan: { principal: 3_000, accruedInterest: 0, startDay: 1, termDays: 60 },
         },
       },

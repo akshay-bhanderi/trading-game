@@ -20,6 +20,7 @@
 
 import { create } from 'zustand'
 import { createNewGame } from '../../engine/newGame'
+import { buyCargoUpgrade as engineBuyCargoUpgrade } from '../../engine/cargo'
 import { buy as engineBuy, sell as engineSell } from '../../engine/actions/trade'
 import { travel as engineTravel, advanceTravelDay } from '../../engine/actions/travel'
 import { stay as engineStay } from '../../engine/actions/stay'
@@ -36,6 +37,8 @@ import {
   sellWarehouse as engineSellWarehouse,
   storeGoods as engineStoreGoods,
   withdrawGoods as engineWithdrawGoods,
+  buyIntoWarehouse as engineBuyIntoWarehouse,
+  sellFromWarehouse as engineSellFromWarehouse,
 } from '../../engine/warehouse'
 import { buildOrUpgradeHotel as engineBuildOrUpgradeHotel, sellHotel as engineSellHotel } from '../../engine/hotel'
 import { generateDailyPaper } from '../../engine/newspaper'
@@ -59,10 +62,23 @@ interface GameStoreState {
   newGame: (difficulty: Difficulty) => void
   buy: (goodId: GoodId, qty: number) => void
   sell: (goodId: GoodId, qty: number) => void
+  /** §2 cargo-capacity upgrades — engine-complete since T011 but never
+   * wired to any UI until this 2026-08 pass (see cargo.ts's
+   * `buyCargoUpgrade`). No-op (engine-rejected) at the top tier or with
+   * insufficient cash. */
+  buyCargoUpgrade: () => void
+  /** User-requested (2026-08): buy straight into / sell straight out of the
+   * current city's warehouse from the Market screen, bypassing cargo. No-op
+   * (engine-rejected) unless a warehouse is actually built there. See
+   * warehouse.ts's `buyIntoWarehouse`/`sellFromWarehouse`. */
+  buyIntoWarehouse: (goodId: GoodId, qty: number) => void
+  sellFromWarehouse: (goodId: GoodId, qty: number) => void
   travelTo: (cityId: CityId) => void
   stay: () => void
-  deposit: (cityId: CityId, amount: number) => void
-  withdraw: (cityId: CityId, amount: number) => void
+  /** 2026-08 bank redesign — a single pooled balance, deposit/withdraw from
+   * any city (no `cityId` param anymore). See bank/deposits.ts. */
+  deposit: (amount: number) => void
+  withdraw: (amount: number) => void
   takeLoan: (cityId: CityId, amount: number) => void
   repayLoan: (cityId: CityId, amount: number) => void
   resolveDefault: (choice: 'surrender' | 'restructure' | 'bankruptcy') => void
@@ -192,6 +208,28 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     commit(set, refreshUnlocks(engineSell(game, goodId, qty, price)))
   },
 
+  buyIntoWarehouse: (goodId, qty) => {
+    const { game } = get()
+    if (!game) return
+    const price = game.priceStates[game.currentCity]?.[goodId]?.currentPrice
+    if (price === undefined) return
+    commit(set, refreshUnlocks(engineBuyIntoWarehouse(game, game.currentCity, goodId, qty, price)))
+  },
+
+  sellFromWarehouse: (goodId, qty) => {
+    const { game } = get()
+    if (!game) return
+    const price = game.priceStates[game.currentCity]?.[goodId]?.currentPrice
+    if (price === undefined) return
+    commit(set, refreshUnlocks(engineSellFromWarehouse(game, game.currentCity, goodId, qty, price)))
+  },
+
+  buyCargoUpgrade: () => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineBuyCargoUpgrade(game)))
+  },
+
   travelTo: (cityId) => {
     const { game } = get()
     if (!game) return
@@ -214,16 +252,16 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     commit(set, refreshUnlocks(engineStay(game)))
   },
 
-  deposit: (cityId, amount) => {
+  deposit: (amount) => {
     const { game } = get()
     if (!game) return
-    commit(set, refreshUnlocks(engineDeposit(game, cityId, amount)))
+    commit(set, refreshUnlocks(engineDeposit(game, amount)))
   },
 
-  withdraw: (cityId, amount) => {
+  withdraw: (amount) => {
     const { game } = get()
     if (!game) return
-    commit(set, refreshUnlocks(engineWithdraw(game, cityId, amount)))
+    commit(set, refreshUnlocks(engineWithdraw(game, amount)))
   },
 
   takeLoan: (cityId, amount) => {

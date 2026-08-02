@@ -150,12 +150,25 @@ export const CARGO = {
    * cargo upgrades.
    */
   startingCapacity: 1499,
-  /** §2: fixed, ordered upgrade path — must be purchased in order (T011). */
+  /**
+   * §2: fixed, ordered upgrade path — must be purchased in order (T011).
+   * USER-REQUESTED ADDITION (2026-08): the doc's original ladder topped out
+   * at 1,500 — two more tiers added on top, continuing the same rough cost-
+   * vs-capacity curve (each tier roughly doubles capacity at ~4x the prior
+   * tier's cost), so cargo capacity keeps growing into the late game instead
+   * of going permanently flat once a player reaches 1,500. Unlike the four
+   * original tiers, these two are NOT yet balance-pass-verified against the
+   * §11 bot harness (nothing in that harness invests in cargo upgrades at
+   * all — see `CARGO.startingCapacity`'s own comment above) — a reasonable
+   * starting point, not a locked-in final number.
+   */
   upgrades: [
     { capacity: 100, cost: 2_500 },
     { capacity: 250, cost: 12_000 },
     { capacity: 600, cost: 60_000 },
     { capacity: 1_500, cost: 300_000 },
+    { capacity: 3_000, cost: 1_200_000 },
+    { capacity: 6_000, cost: 4_500_000 },
   ],
 }
 
@@ -265,9 +278,24 @@ export const EVENTS = {
   /** §7 step 1: "schedules an event 2-4 days in the future". */
   scheduleWindowMinDays: 2,
   scheduleWindowMaxDays: 4,
-  /** §7 step 2: "each morning's paper carries 2-4 items". */
-  storiesPerDayMin: 2,
-  storiesPerDayMax: 4,
+  /**
+   * §7 step 2: doc says "2-4 items" — USER-REQUESTED OVERRIDE (2026-08):
+   * felt too frequent in practice, so this now rolls 0-2 discretionary
+   * stories/day instead (roughly a third of days show none at all).
+   * Resolution stories and unlock headlines are unaffected — they're
+   * always-included, non-discretionary buckets (see generateDailyPaper).
+   */
+  storiesPerDayMin: 0,
+  storiesPerDayMax: 2,
+
+  /**
+   * USER-REQUESTED ADDITION (2026-08): a resolution story for an event that
+   * resolved more than this many days ago is dropped silently instead of
+   * being shown — prevents a multi-day Travel trip from dumping a big
+   * backlog of stale "news" into the next paper you open. See newspaper.ts's
+   * `generateDailyPaper`.
+   */
+  resolutionStalenessMaxDays: 3,
 
   /** §7 step 3: visible source-style accuracy — "wire is right ~80%,
    * gossip ~50%". */
@@ -401,13 +429,28 @@ export const BANKING = {
    * length, used by the default-trigger check below. */
   loanTermDays: 60,
 
-  /** §9: deposit daily compounding interest by bank size. */
+  /** §9 ORIGINAL per-bank-size deposit rates — superseded by the pooled
+   * `globalDepositInterestDailyRate` below (2026-08 redesign, see
+   * bank/deposits.ts's file header) now that deposits no longer live at a
+   * specific city's bank. Kept here, unused, only as a historical reference
+   * for what each tier used to pay. */
   depositInterestDailyRates: {
     Small: 0.001,
     Medium: 0.0014,
     Large: 0.0018,
     Huge: 0.0025,
   } satisfies Record<BankSize, number>,
+
+  /**
+   * USER-REQUESTED ADDITION (2026-08): the single flat daily compounding
+   * rate the pooled global deposit balance earns, regardless of which
+   * city's Bank popup you deposit/withdraw from. User's explicit choice
+   * over "rate of the best bank you've ever used" or "rate of your current
+   * city" alternatives. Set to match the old Medium-bank rate as a
+   * reasonable middle-of-the-road default — a candidate for a future
+   * balance pass like every other ⚙ number.
+   */
+  globalDepositInterestDailyRate: 0.0014,
 
   /** §9: "One active loan per bank; up to 3 banks concurrently." */
   maxConcurrentBankLoans: 3,

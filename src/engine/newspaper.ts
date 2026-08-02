@@ -184,9 +184,24 @@ export function generateDailyPaper(
   options: GenerateDailyPaperOptions = {},
 ): GenerateDailyPaperResult {
   // --- Bucket 1: resolution stories (non-negotiable, always included) -----
+  // USER-REQUESTED (2026-08): two additional filters beyond the original
+  // "resolved on a prior day" gate —
+  //   1. Staleness: anything resolved more than `resolutionStalenessMaxDays`
+  //      days ago is dropped silently rather than shown, so a multi-day
+  //      Travel trip doesn't dump a backlog of old "news" all at once.
+  //   2. Relevance: an event touching only goods/cities the player hasn't
+  //      unlocked yet is dropped silently too — no point reporting on Steel
+  //      prices before the player can even trade Steel.
+  // Either way, the entry is still removed from the queue (never revisited).
   const pending = state.pendingResolutions ?? []
-  const readyResolutions = pending.filter((r) => r.event.scheduledFireDay < state.day)
+  const due = pending.filter((r) => r.event.scheduledFireDay < state.day)
   const stillPendingResolutions = pending.filter((r) => r.event.scheduledFireDay >= state.day)
+
+  const readyResolutions = due.filter(
+    (r) =>
+      state.day - r.event.scheduledFireDay <= CONFIG.events.resolutionStalenessMaxDays &&
+      isEventRelevant(r.event, state),
+  )
 
   const resolutionStories = readyResolutions.map((r, i) => buildResolutionStory(r, state, i))
 
@@ -194,9 +209,9 @@ export function generateDailyPaper(
   const newlyUnlockedCityIds = options.newlyUnlockedCityIds ?? []
   const unlockStories = newlyUnlockedCityIds.map((cityId) => buildUnlockStory(cityId, state))
 
-  // --- Buckets 2/3/4: discretionary mix, 2-4 items per §7 step 2 -----------
+  // --- Buckets 2/3/4: discretionary mix, 0-2 items (see EVENTS.storiesPerDayMin/Max) ---
   const rumorCandidates = state.activeEvents.filter(
-    (e) => !e.resolved && e.scheduledFireDay > state.day && !e.rumorAnnounced,
+    (e) => !e.resolved && e.scheduledFireDay > state.day && !e.rumorAnnounced && isEventRelevant(e, state),
   )
 
   const discretionaryCount = rng.int(CONFIG.events.storiesPerDayMin, CONFIG.events.storiesPerDayMax)
@@ -262,6 +277,33 @@ function goodNames(ids: readonly GoodId[]): string {
 
 function cityName(cityId: CityId): string {
   return CITIES.find((c) => c.id === cityId)?.name ?? cityId
+}
+
+/**
+ * USER-REQUESTED (2026-08): true if `event` is worth reporting on given what
+ * the player has unlocked so far — at least one of its affected goods must
+ * be unlocked (an event with no affected goods, e.g. an Epidemic, is always
+ * relevant), AND its scope must touch an unlocked city ('global' always
+ * qualifies; 'city'/'tier' scope needs at least one unlocked city in that
+ * scope). Applied to both resolution stories and rumor candidates so locked
+ * commodities/cities (e.g. Steel before its license, Tier 2 cities before
+ * unlock) never surface in the newspaper.
+ */
+function isEventRelevant(event: Event, state: GameState): boolean {
+  const goodsOk =
+    event.affectedGoodIds.length === 0 || event.affectedGoodIds.some((id) => state.unlockedGoodIds.includes(id))
+  if (!goodsOk) return false
+
+  switch (event.scope.kind) {
+    case 'global':
+      return true
+    case 'city':
+      return state.unlockedCityIds.includes(event.scope.cityId)
+    case 'tier': {
+      const tier = event.scope.tier
+      return CITIES.some((c) => c.tier === tier && state.unlockedCityIds.includes(c.id))
+    }
+  }
 }
 
 /** Human-readable description of an event's scope, or `''` for global
@@ -376,10 +418,15 @@ function buildRumorStory(event: Event, rng: Rng, state: GameState, index: number
 }
 
 /** Bucket 4: pure fiction dressed as a rumor — a randomly picked
- * good+city+direction combo with NO backing `Event` at all. */
+ * good+city+direction combo with NO backing `Event` at all. USER-REQUESTED
+ * (2026-08): picks only from unlocked goods/cities (falling back to the full
+ * pool in the defensive edge case where nothing is unlocked yet) so a false
+ * rumor never names a good/city the player hasn't reached. */
 function buildFalseRumorStory(rng: Rng, state: GameState, index: number): NewspaperStory {
-  const good = rng.pick(GOODS)
-  const city = rng.pick(CITIES)
+  const unlockedGoods = GOODS.filter((g) => state.unlockedGoodIds.includes(g.id))
+  const unlockedCities = CITIES.filter((c) => state.unlockedCityIds.includes(c.id))
+  const good = rng.pick(unlockedGoods.length > 0 ? unlockedGoods : GOODS)
+  const city = rng.pick(unlockedCities.length > 0 ? unlockedCities : CITIES)
   const direction = rng.next() < 0.5 ? 'set to surge' : 'set to slump'
   const sourceStyle: NewsSourceStyle = rng.next() < 0.5 ? 'wire' : 'gossip'
   const sourceLabel = sourceStyle === 'wire' ? 'Wire report' : 'Bazaar gossip'

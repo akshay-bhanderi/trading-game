@@ -279,7 +279,19 @@ export function advanceTravelDay(state: GameState): GameState {
         nightProbabilityForTravelDays(trip.totalDays),
       ),
     }
-    return advanceDay(arrived)
+    const afterDay = advanceDay(arrived)
+    // User-requested (2026-08): stamp this arrival for the Travel screen's
+    // "Last visited N days ago" summary, using the POST-advanceDay day so it
+    // reads as "0 days ago" immediately on arrival (see types.ts's
+    // `lastVisitedDayByCity` doc comment for why this can't be stamped
+    // before advanceDay's day-increment).
+    return {
+      ...afterDay,
+      lastVisitedDayByCity: {
+        ...(afterDay.lastVisitedDayByCity ?? {}),
+        [trip.destinationCityId]: afterDay.day,
+      },
+    }
   }
 
   const stillTraveling: GameState = {

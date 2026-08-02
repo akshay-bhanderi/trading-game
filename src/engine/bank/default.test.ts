@@ -45,9 +45,9 @@ describe('calcTotalDebt', () => {
   it('sums principal + accruedInterest across every bank account with an active loan', () => {
     const state = makeState({
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: { principal: 800, accruedInterest: 50, startDay: 1, termDays: 60 } },
-        saltmere: { cityId: 'saltmere', depositBalance: 0, loan: { principal: 200, accruedInterest: 10, startDay: 1, termDays: 60 } },
-        copperfell: { cityId: 'copperfell', depositBalance: 500, loan: null },
+        farrow: { cityId: 'farrow', loan: { principal: 800, accruedInterest: 50, startDay: 1, termDays: 60 } },
+        saltmere: { cityId: 'saltmere', loan: { principal: 200, accruedInterest: 10, startDay: 1, termDays: 60 } },
+        copperfell: { cityId: 'copperfell', loan: null },
       },
     })
 
@@ -61,7 +61,7 @@ describe('checkDefaultTrigger — (a) overdue-loan condition', () => {
     const state = makeState({
       day: 76,
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 } },
+        farrow: { cityId: 'farrow', loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 } },
       },
     })
 
@@ -72,7 +72,7 @@ describe('checkDefaultTrigger — (a) overdue-loan condition', () => {
     const state = makeState({
       day: 77,
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 } },
+        farrow: { cityId: 'farrow', loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 } },
       },
     })
 
@@ -83,7 +83,7 @@ describe('checkDefaultTrigger — (a) overdue-loan condition', () => {
     const state = makeState({
       day: 1000,
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: null },
+        farrow: { cityId: 'farrow', loan: null },
       },
     })
 
@@ -120,7 +120,7 @@ describe('updateDefaultTracking', () => {
       day: 5,
       cash: 300,
       debtOverThresholdSinceDay: null,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: overLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: overLoan } },
     })
 
     const result = updateDefaultTracking(state)
@@ -134,7 +134,7 @@ describe('updateDefaultTracking', () => {
       day: 10,
       cash: 300,
       debtOverThresholdSinceDay: 3,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: underLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: underLoan } },
     })
 
     const result = updateDefaultTracking(state)
@@ -148,7 +148,7 @@ describe('updateDefaultTracking', () => {
       day: 8,
       cash: 300,
       debtOverThresholdSinceDay: 3,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: overLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: overLoan } },
     })
 
     const result = updateDefaultTracking(state)
@@ -162,7 +162,7 @@ describe('updateDefaultTracking', () => {
       day: 8,
       cash: 300,
       debtOverThresholdSinceDay: null,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: underLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: underLoan } },
     })
 
     const result = updateDefaultTracking(state)
@@ -178,7 +178,7 @@ describe('updateDefaultTrigger', () => {
       day: 20,
       cash: 300,
       debtOverThresholdSinceDay: 13, // diff = 7
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: overLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: overLoan } },
     })
 
     const result = updateDefaultTrigger(state)
@@ -190,7 +190,7 @@ describe('updateDefaultTrigger', () => {
     const state = makeState({
       day: 77,
       bankAccounts: {
-        saltmere: { cityId: 'saltmere', depositBalance: 0, loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 } },
+        saltmere: { cityId: 'saltmere', loan: { principal: 100, accruedInterest: 0, startDay: 1, termDays: 60 } },
       },
     })
 
@@ -205,7 +205,7 @@ describe('updateDefaultTrigger', () => {
       day: 20,
       cash: 300,
       debtOverThresholdSinceDay: 13,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: overLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: overLoan } },
     })
     const afterTrigger = updateDefaultTrigger(state)
     expect(afterTrigger.awaitingDefaultDecision).toEqual({ triggeredBy: 'debtRatio' })
@@ -216,7 +216,7 @@ describe('updateDefaultTrigger', () => {
     const nextDayState: GameState = {
       ...afterTrigger,
       day: 21,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: underLoan } },
+      bankAccounts: { farrow: { cityId: 'farrow', loan: underLoan } },
     }
 
     const result = updateDefaultTrigger(nextDayState)
@@ -239,9 +239,11 @@ describe('calcSurrenderSeizedValue', () => {
     const state = makeState({
       currentCity: 'farrow',
       cash: 200,
+      // 2026-08 bank redesign: a single pooled balance, not summed per city.
+      deposit: 1_000,
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 600, loan: null },
-        saltmere: { cityId: 'saltmere', depositBalance: 400, loan: null },
+        farrow: { cityId: 'farrow', loan: null },
+        saltmere: { cityId: 'saltmere', loan: null },
       },
       cargo: { grain: { goodId: 'grain', qty: 50, avgBuyCost: 10, lots: [{ qty: 50, unitCost: 10 }] } },
       priceStates: {
@@ -251,7 +253,7 @@ describe('calcSurrenderSeizedValue', () => {
       },
     })
 
-    // deposits: 600 + 400 = 1000; cargo: 50 * 10 = 500; total 1500 * 0.7 = 1050
+    // deposit (pooled): 1000; cargo: 50 * 10 = 500; total 1500 * 0.7 = 1050
     expect(calcSurrenderSeizedValue(state)).toBeCloseTo(1050, 6)
   })
 
@@ -274,13 +276,14 @@ describe('resolveDefault — surrender', () => {
       cash: 200,
       repaymentRecord: 0.2,
       awaitingDefaultDecision: { triggeredBy: 'debtRatio' },
+      // 2026-08 bank redesign: a single pooled balance, not summed per city.
+      deposit: 1_000,
       bankAccounts: {
         farrow: {
           cityId: 'farrow',
-          depositBalance: 600,
           loan: { principal: loanPrincipal, accruedInterest: 50, startDay: 1, termDays: 60 },
         },
-        saltmere: { cityId: 'saltmere', depositBalance: 400, loan: null },
+        saltmere: { cityId: 'saltmere', loan: null },
       },
       cargo: { grain: { goodId: 'grain', qty: 50, avgBuyCost: 10, lots: [{ qty: 50, unitCost: 10 }] } },
       priceStates: {
@@ -295,8 +298,9 @@ describe('resolveDefault — surrender', () => {
     const state = surrenderState(800) // debt = 800 + 50 = 850 < seizedValue 1050
     const result = resolveDefault(state, 'surrender')
 
-    expect(result.bankAccounts['farrow']).toEqual({ cityId: 'farrow', depositBalance: 0, loan: null })
-    expect(result.bankAccounts['saltmere']).toEqual({ cityId: 'saltmere', depositBalance: 0, loan: null })
+    expect(result.bankAccounts['farrow']).toEqual({ cityId: 'farrow', loan: null })
+    expect(result.bankAccounts['saltmere']).toEqual({ cityId: 'saltmere', loan: null })
+    expect(result.deposit).toBe(0)
     expect(result.cargo).toEqual({})
     // Excess ($200) is forfeited to the bank, NOT refunded as cash.
     expect(result.cash).toBe(200)
@@ -329,8 +333,8 @@ describe('resolveDefault — restructure', () => {
       repaymentRecord: 0.1,
       awaitingDefaultDecision: { triggeredBy: 'overdueLoan', cityId: 'farrow' },
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: { principal: 500, accruedInterest: 20, startDay: 1, termDays: 60 } },
-        saltmere: { cityId: 'saltmere', depositBalance: 300, loan: null },
+        farrow: { cityId: 'farrow', loan: { principal: 500, accruedInterest: 20, startDay: 1, termDays: 60 } },
+        saltmere: { cityId: 'saltmere', loan: null },
       },
     })
 
@@ -344,7 +348,7 @@ describe('resolveDefault — restructure', () => {
       restructured: true,
     })
     // Accounts with no loan are left untouched.
-    expect(result.bankAccounts['saltmere']).toEqual({ cityId: 'saltmere', depositBalance: 300, loan: null })
+    expect(result.bankAccounts['saltmere']).toEqual({ cityId: 'saltmere', loan: null })
     expect(result.repaymentRecord).toBeCloseTo(-0.2, 10)
     expect(result.restructureRecheckDay).toBe(50 + CONFIG.banking.default.restructure.recheckAfterDays)
     expect(result.awaitingDefaultDecision).toBeNull()
@@ -387,7 +391,7 @@ describe('checkRestructureRecheck', () => {
       cash: 300,
       restructureRecheckDay: 65,
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: { principal: 250, accruedInterest: 0, startDay: 1, termDays: 60 } },
+        farrow: { cityId: 'farrow', loan: { principal: 250, accruedInterest: 0, startDay: 1, termDays: 60 } },
       },
     })
 
@@ -404,7 +408,7 @@ describe('checkRestructureRecheck', () => {
       cash: 300,
       restructureRecheckDay: 65,
       bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 0, loan: { principal: 150, accruedInterest: 0, startDay: 1, termDays: 60 } },
+        farrow: { cityId: 'farrow', loan: { principal: 150, accruedInterest: 0, startDay: 1, termDays: 60 } },
       },
     })
 

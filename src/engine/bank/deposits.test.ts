@@ -34,49 +34,43 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 }
 
 describe('deposit', () => {
-  it('creates a new BankAccount entry on the player\'s first-ever deposit at a city', () => {
-    const state = makeState({ currentCity: 'farrow', cash: 5_000, bankAccounts: {} })
-    const result = deposit(state, 'farrow', 1_000)
+  it('deposits into the pooled state.deposit balance on the player\'s first-ever deposit', () => {
+    const state = makeState({ cash: 5_000, deposit: undefined })
+    const result = deposit(state, 1_000)
 
     expect(result).not.toBe(state)
     expect(result.cash).toBe(4_000)
-    expect(result.bankAccounts['farrow']).toEqual({
-      cityId: 'farrow',
-      depositBalance: 1_000,
-      loan: null,
-    })
+    expect(result.deposit).toBe(1_000)
   })
 
-  it('adds onto an existing BankAccount\'s depositBalance rather than replacing it', () => {
-    const state = makeState({
-      currentCity: 'farrow',
-      cash: 5_000,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 500, loan: null } },
-    })
-    const result = deposit(state, 'farrow', 200)
+  it('adds onto an existing pooled balance rather than replacing it', () => {
+    const state = makeState({ cash: 5_000, deposit: 500 })
+    const result = deposit(state, 200)
 
-    expect(result.bankAccounts['farrow']?.depositBalance).toBe(700)
+    expect(result.deposit).toBe(700)
     expect(result.cash).toBe(4_800)
   })
 
-  it('rejects (no mutation) when state.currentCity !== cityId', () => {
-    const state = makeState({ currentCity: 'farrow', cash: 5_000, bankAccounts: {} })
-    const result = deposit(state, 'saltmere', 1_000)
+  it('succeeds from any city — deposits are no longer gated by currentCity', () => {
+    // The old v1 model required state.currentCity === cityId; the pooled
+    // redesign has no cityId param at all and no presence check whatsoever.
+    const state = makeState({ currentCity: 'farrow', cash: 5_000, deposit: 0 })
+    const result = deposit(state, 1_000)
 
-    expect(result).toBe(state)
-    expect(result.cash).toBe(5_000)
-    expect(result.bankAccounts['saltmere']).toBeUndefined()
+    expect(result).not.toBe(state)
+    expect(result.cash).toBe(4_000)
+    expect(result.deposit).toBe(1_000)
   })
 
   it('rejects when amount <= 0', () => {
-    const state = makeState({ currentCity: 'farrow', cash: 5_000 })
-    expect(deposit(state, 'farrow', 0)).toBe(state)
-    expect(deposit(state, 'farrow', -50)).toBe(state)
+    const state = makeState({ cash: 5_000 })
+    expect(deposit(state, 0)).toBe(state)
+    expect(deposit(state, -50)).toBe(state)
   })
 
   it('rejects insufficient cash', () => {
-    const state = makeState({ currentCity: 'farrow', cash: 100 })
-    const result = deposit(state, 'farrow', 101)
+    const state = makeState({ cash: 100 })
+    const result = deposit(state, 101)
 
     expect(result).toBe(state)
     expect(result.cash).toBe(100)
@@ -84,115 +78,92 @@ describe('deposit', () => {
 })
 
 describe('withdraw', () => {
-  it('moves money from depositBalance back into cash', () => {
-    const state = makeState({
-      currentCity: 'farrow',
-      cash: 100,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 1_000, loan: null } },
-    })
-    const result = withdraw(state, 'farrow', 400)
+  it('moves money from the pooled deposit balance back into cash', () => {
+    const state = makeState({ cash: 100, deposit: 1_000 })
+    const result = withdraw(state, 400)
 
     expect(result.cash).toBe(500)
-    expect(result.bankAccounts['farrow']?.depositBalance).toBe(600)
+    expect(result.deposit).toBe(600)
   })
 
-  it('rejects (no mutation) when state.currentCity !== cityId', () => {
-    const state = makeState({
-      currentCity: 'farrow',
-      cash: 100,
-      bankAccounts: { saltmere: { cityId: 'saltmere', depositBalance: 1_000, loan: null } },
-    })
-    const result = withdraw(state, 'saltmere', 400)
+  it('succeeds from any city — withdrawals are no longer gated by currentCity', () => {
+    const state = makeState({ currentCity: 'saltmere', cash: 100, deposit: 1_000 })
+    const result = withdraw(state, 400)
 
-    expect(result).toBe(state)
-    expect(result.cash).toBe(100)
-    expect(result.bankAccounts['saltmere']?.depositBalance).toBe(1_000)
+    expect(result).not.toBe(state)
+    expect(result.cash).toBe(500)
+    expect(result.deposit).toBe(600)
   })
 
-  it('rejects when the account does not exist yet', () => {
-    const state = makeState({ currentCity: 'farrow', cash: 100, bankAccounts: {} })
-    const result = withdraw(state, 'farrow', 50)
+  it('rejects when there is nothing deposited yet (deposit unset, defaults to 0)', () => {
+    const state = makeState({ cash: 100, deposit: undefined })
+    const result = withdraw(state, 50)
 
     expect(result).toBe(state)
   })
 
   it('rejects insufficient balance', () => {
-    const state = makeState({
-      currentCity: 'farrow',
-      cash: 100,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 300, loan: null } },
-    })
-    const result = withdraw(state, 'farrow', 301)
+    const state = makeState({ cash: 100, deposit: 300 })
+    const result = withdraw(state, 301)
 
     expect(result).toBe(state)
-    expect(result.bankAccounts['farrow']?.depositBalance).toBe(300)
+    expect(result.deposit).toBe(300)
   })
 
   it('rejects when amount <= 0', () => {
-    const state = makeState({
-      currentCity: 'farrow',
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 300, loan: null } },
-    })
-    expect(withdraw(state, 'farrow', 0)).toBe(state)
-    expect(withdraw(state, 'farrow', -10)).toBe(state)
+    const state = makeState({ deposit: 300 })
+    expect(withdraw(state, 0)).toBe(state)
+    expect(withdraw(state, -10)).toBe(state)
   })
 })
 
 describe('accrueDepositInterest', () => {
-  it('matches a hand-computed compounding value over multiple days (Medium bank, rate 0.0014/day)', () => {
-    // port-vela is a Medium-bank city (see /src/engine/data/cities.ts).
-    let state = makeState({
-      currentCity: 'port-vela',
-      bankAccounts: { 'port-vela': { cityId: 'port-vela', depositBalance: 10_000, loan: null } },
-    })
+  it('matches a hand-computed compounding value over multiple days at the single flat globalDepositInterestDailyRate', () => {
+    let state = makeState({ deposit: 10_000 })
 
     const DAYS = 10
-    const rate = CONFIG.banking.depositInterestDailyRates.Medium
+    const rate = CONFIG.banking.globalDepositInterestDailyRate
     expect(rate).toBeCloseTo(0.0014, 10)
 
     for (let i = 0; i < DAYS; i++) {
       state = accrueDepositInterest(state)
     }
 
-    const expected = 10_000 * Math.pow(1 + 0.0014, DAYS)
-    expect(state.bankAccounts['port-vela']?.depositBalance).toBeCloseTo(expected, 6)
+    const expected = 10_000 * Math.pow(1 + rate, DAYS)
+    expect(state.deposit).toBeCloseTo(expected, 6)
   })
 
-  it('accrues independently per city at each city\'s own bank-size rate', () => {
-    // farrow = Small (0.001/day), port-vela = Medium (0.0014/day).
-    const state = makeState({
-      bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 1_000, loan: null },
-        'port-vela': { cityId: 'port-vela', depositBalance: 1_000, loan: null },
-      },
-    })
+  it('applies the same flat rate regardless of which city the player is currently in', () => {
+    // The pooled balance has no per-city bank-size rate anymore — the same
+    // flat rate applies no matter state.currentCity.
+    const rate = CONFIG.banking.globalDepositInterestDailyRate
 
-    const result = accrueDepositInterest(state)
+    const farrowState = makeState({ currentCity: 'farrow', deposit: 1_000 })
+    const portVelaState = makeState({ currentCity: 'port-vela', deposit: 1_000 })
 
-    expect(result.bankAccounts['farrow']?.depositBalance).toBeCloseTo(1_000 * 1.001, 6)
-    expect(result.bankAccounts['port-vela']?.depositBalance).toBeCloseTo(1_000 * 1.0014, 6)
+    const farrowResult = accrueDepositInterest(farrowState)
+    const portVelaResult = accrueDepositInterest(portVelaState)
+
+    expect(farrowResult.deposit).toBeCloseTo(1_000 * (1 + rate), 6)
+    expect(portVelaResult.deposit).toBeCloseTo(1_000 * (1 + rate), 6)
   })
 
   it('does not mutate the input state (returns a new object)', () => {
-    const state = makeState({
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 1_000, loan: null } },
-    })
+    const state = makeState({ deposit: 1_000 })
     const snapshot = JSON.parse(JSON.stringify(state))
     accrueDepositInterest(state)
     expect(state).toEqual(snapshot)
   })
 
-  it('skips accounts with a zero depositBalance, and returns the identical state reference when nothing to accrue', () => {
-    const state = makeState({
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: null } },
-    })
+  it('returns the identical state reference when the balance is zero', () => {
+    const state = makeState({ deposit: 0 })
     const result = accrueDepositInterest(state)
 
     expect(result).toBe(state)
   })
 
-  it('returns the identical state reference when bankAccounts is empty', () => {
-    const state = makeState({ bankAccounts: {} })
+  it('returns the identical state reference when deposit is unset (defaults to 0)', () => {
+    const state = makeState({ deposit: undefined })
     const result = accrueDepositInterest(state)
 
     expect(result).toBe(state)
@@ -200,43 +171,38 @@ describe('accrueDepositInterest', () => {
 })
 
 describe('accrueDepositInterest — depositInterestThisFiscalYear accumulation (T030)', () => {
-  it('accumulates the exact interest amount credited across all accounts in a single call', () => {
-    const state = makeState({
-      bankAccounts: {
-        farrow: { cityId: 'farrow', depositBalance: 1_000, loan: null }, // Small, 0.001/day
-        'port-vela': { cityId: 'port-vela', depositBalance: 2_000, loan: null }, // Medium, 0.0014/day
-      },
-    })
+  it('accumulates the exact interest amount credited on the pooled balance in a single call', () => {
+    const state = makeState({ deposit: 2_000 })
 
     const result = accrueDepositInterest(state)
 
-    const expectedInterest = 1_000 * CONFIG.banking.depositInterestDailyRates.Small +
-      2_000 * CONFIG.banking.depositInterestDailyRates.Medium
+    const expectedInterest = 2_000 * CONFIG.banking.globalDepositInterestDailyRate
     expect(result.depositInterestThisFiscalYear).toBeCloseTo(expectedInterest, 6)
   })
 
   it('defaults a missing prior depositInterestThisFiscalYear to 0 before accumulating', () => {
-    const state = makeState({
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 10_000, loan: null } },
-    })
+    const state = makeState({ deposit: 10_000 })
     expect(state.depositInterestThisFiscalYear).toBeUndefined()
 
     const result = accrueDepositInterest(state)
 
-    expect(result.depositInterestThisFiscalYear).toBeCloseTo(10_000 * CONFIG.banking.depositInterestDailyRates.Small, 6)
+    expect(result.depositInterestThisFiscalYear).toBeCloseTo(
+      10_000 * CONFIG.banking.globalDepositInterestDailyRate,
+      6,
+    )
   })
 
   it('accumulates across multiple days on top of a pre-existing running total', () => {
     let state = makeState({
       depositInterestThisFiscalYear: 50,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 10_000, loan: null } },
+      deposit: 10_000,
     })
 
     state = accrueDepositInterest(state)
     state = accrueDepositInterest(state)
 
     // Day 1 interest: 10,000 * rate. Day 2 interest: (10,000 + day1 interest) * rate.
-    const rate = CONFIG.banking.depositInterestDailyRates.Small
+    const rate = CONFIG.banking.globalDepositInterestDailyRate
     const day1Interest = 10_000 * rate
     const day2Interest = (10_000 + day1Interest) * rate
     expect(state.depositInterestThisFiscalYear).toBeCloseTo(50 + day1Interest + day2Interest, 6)
@@ -245,7 +211,7 @@ describe('accrueDepositInterest — depositInterestThisFiscalYear accumulation (
   it('does not accumulate when there is nothing to accrue (identical state reference)', () => {
     const state = makeState({
       depositInterestThisFiscalYear: 20,
-      bankAccounts: { farrow: { cityId: 'farrow', depositBalance: 0, loan: null } },
+      deposit: 0,
     })
     const result = accrueDepositInterest(state)
     expect(result).toBe(state)
