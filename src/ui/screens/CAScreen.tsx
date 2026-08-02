@@ -9,6 +9,7 @@
 import { useGameStore } from '../store/gameStore'
 import { CONFIG } from '../../engine/config'
 import { isCAHiringAvailable } from '../../engine/ca'
+import { formatMoney } from '../format'
 
 export default function CAScreen() {
   const game = useGameStore((s) => s.game)
@@ -43,8 +44,8 @@ export default function CAScreen() {
             const cfg = CONFIG.tax.caTiers[tier]
             return (
               <button key={tier} className="secondary" disabled={game.cash < cfg.annualFee} onClick={() => hireCA(tier)}>
-                {tier} (${cfg.annualFee.toLocaleString()}) — {(cfg.taxRate * 100).toFixed(0)}% tax up to $
-                {cfg.profitCap?.toLocaleString()}
+                {tier} (${formatMoney(cfg.annualFee)}) — {(cfg.taxRate * 100).toFixed(0)}% tax up to $
+                {cfg.profitCap !== null ? formatMoney(cfg.profitCap) : '—'}
               </button>
             )
           })}

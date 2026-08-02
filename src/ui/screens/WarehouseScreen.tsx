@@ -57,6 +57,7 @@ import {
   warehouseGoodsUsed,
 } from '../../engine/warehouse'
 import CapacityBar from '../components/CapacityBar'
+import { formatMoney } from '../format'
 import type { GoodId } from '../../engine/types'
 
 function goodName(goodId: GoodId): string {
@@ -273,7 +274,7 @@ export default function WarehouseScreen() {
                   disabled={game.cash < tier.buildCost}
                   onClick={() => buildWarehouseFloor(cityId)}
                 >
-                  Build — ${tier.buildCost.toLocaleString()}
+                  Build — ${formatMoney(tier.buildCost)}
                 </button>
               ) : (
                 <span className="muted warehouse-floor-locked">Locked</span>
@@ -303,7 +304,7 @@ export default function WarehouseScreen() {
               <h2>Store / Withdraw</h2>
               <div className="row muted">
                 <span>Stored value (last-known local price)</span>
-                <strong>${storedValue.toFixed(0)}</strong>
+                <strong>${formatMoney(storedValue)}</strong>
               </div>
               {relevantGoodIds.length === 0 ? (
                 <p className="muted">Carry goods here, or store some, to manage them.</p>
@@ -344,24 +345,27 @@ export default function WarehouseScreen() {
               <span>This city's floors' upkeep</span>
               <strong>
                 $
-                {Array.from({ length: floorsBuilt }, (_, i) => CONFIG.warehouse.floors[i + 1]?.annualMaintenance ?? 0)
-                  .reduce((a, b) => a + b, 0)
-                  .toLocaleString()}
+                {formatMoney(
+                  Array.from(
+                    { length: floorsBuilt },
+                    (_, i) => CONFIG.warehouse.floors[i + 1]?.annualMaintenance ?? 0,
+                  ).reduce((a, b) => a + b, 0),
+                )}
                 /yr
               </strong>
             </div>
             <div className="row muted">
               <span>All warehouses' combined year-end bill</span>
-              <strong>${annualBill.toFixed(0)}</strong>
+              <strong>${formatMoney(annualBill)}</strong>
             </div>
             {game.warehouseMaintenanceDebt && (
               <div className="row">
                 <span>Outstanding maintenance debt</span>
                 <strong>
                   $
-                  {(
-                    game.warehouseMaintenanceDebt.principal + game.warehouseMaintenanceDebt.accruedInterest
-                  ).toFixed(2)}
+                  {formatMoney(
+                    game.warehouseMaintenanceDebt.principal + game.warehouseMaintenanceDebt.accruedInterest,
+                  )}
                 </strong>
               </div>
             )}
@@ -371,7 +375,7 @@ export default function WarehouseScreen() {
             <h2>Sell warehouse</h2>
             <p className="muted">
               Liquidates all {floorsBuilt} floor{floorsBuilt === 1 ? '' : 's'} for 50% of total build cost ($
-              {(cumulativeBuildCost(floorsBuilt) * CONFIG.warehouse.sellBackFraction).toLocaleString()}).
+              {formatMoney(cumulativeBuildCost(floorsBuilt) * CONFIG.warehouse.sellBackFraction)}).
               {used > 0 && ' Withdraw all stored goods first.'}
             </p>
             <button className="secondary" disabled={used > 0} onClick={() => sellWarehouse(cityId)}>

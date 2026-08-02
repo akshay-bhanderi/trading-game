@@ -22,6 +22,7 @@ import {
   isEpidemicActiveInCity,
   listOwnedHotels,
 } from '../../engine/hotel'
+import { formatMoney } from '../format'
 
 export default function RealEstateScreen() {
   const game = useGameStore((s) => s.game)
@@ -48,7 +49,7 @@ export default function RealEstateScreen() {
             return (
               <>
                 {tier === null ? (
-                  <p className="muted">No hotel owned here yet. Nightly guest rate: ${currentCity.hotelPerNight}.</p>
+                  <p className="muted">No hotel owned here yet. Nightly guest rate: ${formatMoney(currentCity.hotelPerNight)}.</p>
                 ) : (
                   <>
                     <div className="row">
@@ -57,7 +58,7 @@ export default function RealEstateScreen() {
                     </div>
                     <div className="row">
                       <span>Daily revenue</span>
-                      <strong>{paused ? 'Paused (epidemic)' : `$${(revenue ?? 0).toFixed(2)}`}</strong>
+                      <strong>{paused ? 'Paused (epidemic)' : `$${formatMoney(revenue ?? 0)}`}</strong>
                     </div>
                   </>
                 )}
@@ -67,7 +68,7 @@ export default function RealEstateScreen() {
                     nextTierIndex !== null &&
                     nextCost !== null && (
                       <button onClick={() => buildOrUpgradeHotel(currentCity.id)}>
-                        Build {getTierName(nextTierIndex)} (${nextCost.toLocaleString()})
+                        Build {getTierName(nextTierIndex)} (${formatMoney(nextCost)})
                       </button>
                     )
                   ) : (
@@ -77,7 +78,7 @@ export default function RealEstateScreen() {
                           this position and gets mis-tapped as if it were Upgrade. */}
                       {nextTierIndex !== null && nextCost !== null ? (
                         <button onClick={() => buildOrUpgradeHotel(currentCity.id)}>
-                          Upgrade to {getTierName(nextTierIndex)} (${nextCost.toLocaleString()})
+                          Upgrade to {getTierName(nextTierIndex)} (${formatMoney(nextCost)})
                         </button>
                       ) : (
                         <button className="secondary" disabled>
@@ -85,7 +86,7 @@ export default function RealEstateScreen() {
                         </button>
                       )}
                       <button className="secondary" onClick={() => sellHotel(currentCity.id)}>
-                        Sell (${(cumulativeInvested(currentCity, tier) * CONFIG.hotel.sellBackFraction).toLocaleString()})
+                        Sell (${formatMoney(cumulativeInvested(currentCity, tier) * CONFIG.hotel.sellBackFraction)})
                       </button>
                     </>
                   )}
@@ -111,7 +112,7 @@ export default function RealEstateScreen() {
                 {city.name} · {getTierName(tier)}
                 {!isHere && <span className="muted"> (visit to manage)</span>}
               </span>
-              <strong>{paused ? 'Paused' : `$${revenue.toFixed(2)}/day`}</strong>
+              <strong>{paused ? 'Paused' : `$${formatMoney(revenue)}/day`}</strong>
             </div>
           )
         })}

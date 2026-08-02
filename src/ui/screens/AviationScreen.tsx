@@ -33,6 +33,7 @@ import {
   planeDepreciatedValue,
   isFuelPriceSpikeActive,
 } from '../../engine/aviation'
+import { formatMoney } from '../format'
 import type { Plane, PlaneClass, PlaneStatus } from '../../engine/types'
 
 const CLASS_LABELS: Record<PlaneClass, string> = {
@@ -53,7 +54,7 @@ const PLANE_CLASSES = Object.keys(CONFIG.aviation.classes) as PlaneClass[]
 const PLANE_STATUSES: PlaneStatus[] = ['idle', 'leasedMonthly', 'leasedAnnual', 'personal']
 
 function money(n: number): string {
-  return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+  return `$${formatMoney(n)}`
 }
 
 export default function AviationScreen() {

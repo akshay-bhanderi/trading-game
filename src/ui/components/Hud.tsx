@@ -70,6 +70,7 @@
  */
 
 import { CargoIcon, CoinIcon, HotelIcon } from './PixelIcons'
+import { formatMoney } from '../format'
 
 export type PopupKind =
   | 'market'
@@ -134,7 +135,7 @@ export default function Hud({
           </div>
           <div className="hud-chip hud-wallet">
             <span className="icon-label">
-              <CoinIcon size={13} />${cash.toFixed(0)}
+              <CoinIcon size={13} />${formatMoney(cash)}
             </span>
             <span className="icon-label">
               <CargoIcon size={13} />

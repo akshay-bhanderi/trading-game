@@ -13,6 +13,7 @@ import { calcTipPrice } from '../../engine/informant'
 import type { InformantTip } from '../../engine/informant'
 import { CITIES } from '../../engine/data/cities'
 import { GOODS } from '../../engine/data/goods'
+import { formatMoney } from '../format'
 
 function cityName(cityId: string): string {
   return CITIES.find((c) => c.id === cityId)?.name ?? cityId
@@ -47,7 +48,7 @@ export default function InformantModal({ onClose }: { onClose: () => void }) {
           </p>
           <div className="row">
             <span>Tip price</span>
-            <strong>${price.toFixed(0)}</strong>
+            <strong>${formatMoney(price)}</strong>
           </div>
           {rejected && <p className="muted">Couldn't afford that tip.</p>}
           <button
@@ -60,7 +61,7 @@ export default function InformantModal({ onClose }: { onClose: () => void }) {
               setTip(result)
             }}
           >
-            Buy Tip (${price.toFixed(0)})
+            Buy Tip (${formatMoney(price)})
           </button>
         </>
       ) : (

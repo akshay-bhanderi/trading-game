@@ -7,6 +7,7 @@
  */
 
 import type { TaxRecord } from '../../engine/types'
+import { formatMoney } from '../format'
 
 export default function YearEndScreen({ record, onDismiss }: { record: TaxRecord; onDismiss: () => void }) {
   const taxableBase = record.realizedProfit + record.depositInterestEarned
@@ -17,15 +18,15 @@ export default function YearEndScreen({ record, onDismiss }: { record: TaxRecord
 
       <div className="row">
         <span>Realized trading profit</span>
-        <strong>${record.realizedProfit.toFixed(2)}</strong>
+        <strong>${formatMoney(record.realizedProfit)}</strong>
       </div>
       <div className="row">
         <span>Deposit interest earned</span>
-        <strong>${record.depositInterestEarned.toFixed(2)}</strong>
+        <strong>${formatMoney(record.depositInterestEarned)}</strong>
       </div>
       <div className="row">
         <span>Taxable base</span>
-        <strong>${taxableBase.toFixed(2)}</strong>
+        <strong>${formatMoney(taxableBase)}</strong>
       </div>
       <div className="row">
         <span>CA on file</span>
@@ -33,12 +34,12 @@ export default function YearEndScreen({ record, onDismiss }: { record: TaxRecord
       </div>
       <div className="row">
         <span>Tax paid</span>
-        <strong>${record.taxPaid.toFixed(2)}</strong>
+        <strong>${formatMoney(record.taxPaid)}</strong>
       </div>
       {!!record.hotelLicenseFeesPaid && (
         <div className="row">
           <span>Hotel license fees</span>
-          <strong>${record.hotelLicenseFeesPaid.toFixed(2)}</strong>
+          <strong>${formatMoney(record.hotelLicenseFeesPaid)}</strong>
         </div>
       )}
 

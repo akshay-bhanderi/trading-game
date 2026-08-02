@@ -14,6 +14,7 @@ import { useGameStore } from '../store/gameStore'
 import { calcFare, getTravelDays } from '../../engine/travel'
 import { cargoUsed } from '../../engine/cargo'
 import { CITIES } from '../../engine/data/cities'
+import { formatMoney } from '../format'
 
 export default function TravelScreen({ onClose }: { onClose: () => void }) {
   const game = useGameStore((s) => s.game)
@@ -40,7 +41,7 @@ export default function TravelScreen({ onClose }: { onClose: () => void }) {
               <span className="muted">Tier {city.tier}</span>
             </div>
             <div className="muted travel-tile-fare">
-              {days} day{days === 1 ? '' : 's'} · ${fare.toFixed(0)} fare
+              {days} day{days === 1 ? '' : 's'} · ${formatMoney(fare)} fare
             </div>
             <div className="muted travel-tile-visited">
               {daysSinceVisit === undefined

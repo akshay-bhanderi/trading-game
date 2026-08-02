@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { CONFIG } from '../../engine/config'
 import { CITIES } from '../../engine/data/cities'
+import { formatMoney } from '../format'
 import type { Difficulty } from '../../engine/types'
 
 const DIFFICULTIES: Difficulty[] = ['Noob', 'Pro', 'Expert']
@@ -45,7 +46,7 @@ export default function TitleScreen() {
                 <span className="difficulty-row-top">
                   <span className="difficulty-row-name">{d}</span>
                   <span className="difficulty-row-stats">
-                    ${cfg.startingCash.toLocaleString()} · {cityName(cfg.startingCityId)} · {cfg.scoreMultiplier}x score
+                    ${formatMoney(cfg.startingCash)} · {cityName(cfg.startingCityId)} · {cfg.scoreMultiplier}x score
                   </span>
                 </span>
                 <span className="difficulty-row-tagline">{TAGLINE[d]}</span>

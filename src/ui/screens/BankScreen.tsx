@@ -24,6 +24,7 @@ import { CONFIG } from '../../engine/config'
 import { rankFactor } from '../../engine/bank/loans'
 import { calcTotalDebt } from '../../engine/bank/default'
 import { calcNetWorth } from '../../engine/netWorth'
+import { formatMoney } from '../format'
 
 /**
  * Shared amount-entry control (stepper + slider + Max), mirroring
@@ -131,7 +132,7 @@ export default function BankScreen() {
         <p className="muted">
           {game.awaitingDefaultDecision.triggeredBy === 'overdueLoan'
             ? 'A loan is well past its term.'
-            : `Your debt ($${debt.toFixed(0)}) has stayed over 2x your net worth ($${netWorth.toFixed(0)}) too long.`}{' '}
+            : `Your debt ($${formatMoney(debt)}) has stayed over 2x your net worth ($${formatMoney(netWorth)}) too long.`}{' '}
           Choose how to respond.
         </p>
 
@@ -177,7 +178,7 @@ export default function BankScreen() {
         <h2>Bank Balance</h2>
         <div className="row">
           <span>Balance (any city)</span>
-          <strong>${depositBalance.toFixed(2)}</strong>
+          <strong>${formatMoney(depositBalance)}</strong>
         </div>
 
         <div className="trade-tabs">
@@ -225,11 +226,11 @@ export default function BankScreen() {
           <>
             <div className="row muted">
               <span>Principal</span>
-              <span>${account.loan.principal.toFixed(2)}</span>
+              <span>${formatMoney(account.loan.principal)}</span>
             </div>
             <div className="row muted">
               <span>Accrued interest</span>
-              <span>${account.loan.accruedInterest.toFixed(2)}</span>
+              <span>${formatMoney(account.loan.accruedInterest)}</span>
             </div>
 
             <AmountStepper
@@ -244,12 +245,12 @@ export default function BankScreen() {
               disabled={game.cash < outstanding}
               onClick={() => repayLoan(game.currentCity, outstanding)}
             >
-              Repay Full (${outstanding.toFixed(2)})
+              Repay Full (${formatMoney(outstanding)})
             </button>
           </>
         ) : (
           <>
-            <p className="muted">No active loan here. Max available: ${maxLoan.toFixed(0)}.</p>
+            <p className="muted">No active loan here. Max available: ${formatMoney(maxLoan)}.</p>
             <AmountStepper
               max={Math.floor(maxLoan)}
               onConfirm={(amt) => takeLoan(game.currentCity, amt)}

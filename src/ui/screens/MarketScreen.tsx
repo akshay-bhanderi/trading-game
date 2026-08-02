@@ -7,6 +7,7 @@ import { warehouseCapacity, warehouseGoodsUsed } from '../../engine/warehouse'
 import type { GoodId } from '../../engine/types'
 import TradePanel from '../components/TradePanel'
 import CapacityBar from '../components/CapacityBar'
+import { formatMoney } from '../format'
 
 /** Where a Buy/Sell in the TradePanel actually reads/writes — user-requested
  * (2026-08): lets the Market screen trade straight against the current
@@ -102,7 +103,7 @@ export default function MarketScreen() {
           disabled={game.cash < nextCargoTier.cost}
           onClick={() => buyCargoUpgrade()}
         >
-          Upgrade cargo to {nextCargoTier.capacity.toLocaleString()} — ${nextCargoTier.cost.toLocaleString()}
+          Upgrade cargo to {nextCargoTier.capacity.toLocaleString()} — ${formatMoney(nextCargoTier.cost)}
         </button>
       ) : (
         <p className="muted market-cargo-upgrade-btn">Cargo capacity maxed.</p>

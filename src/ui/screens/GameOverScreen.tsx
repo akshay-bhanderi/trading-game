@@ -16,6 +16,7 @@
 
 import { useGameStore } from '../store/gameStore'
 import { getHighScores } from '../../engine/persistence/highScore'
+import { formatMoney } from '../format'
 
 export default function GameOverScreen() {
   const game = useGameStore((s) => s.game)
@@ -32,7 +33,7 @@ export default function GameOverScreen() {
       <div className="card">
         <div className="row">
           <span>Peak net worth (score)</span>
-          <strong>${game.peakNetWorth.toFixed(0)}</strong>
+          <strong>${formatMoney(game.peakNetWorth)}</strong>
         </div>
         <div className="row">
           <span>Days survived</span>
@@ -55,7 +56,7 @@ export default function GameOverScreen() {
               #{i + 1} · {s.difficulty}
             </span>
             <strong>
-              ${s.peakNetWorth.toFixed(0)} ({s.daysSurvived}d)
+              ${formatMoney(s.peakNetWorth)} ({s.daysSurvived}d)
             </strong>
           </div>
         ))}
