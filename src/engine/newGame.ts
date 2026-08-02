@@ -38,7 +38,7 @@ export function createNewGame(difficulty: Difficulty, seed: number): GameState {
     currentCity: config.startingCityId,
     cash: config.startingCash,
     cargo: {},
-    cargoCapacity: CONFIG.cargo.startingCapacity,
+    cargoCapacity: CONFIG.cargo.newGameStartingCapacity,
     bankAccounts: {},
     priceStates: {},
     unlockedCityIds: tier1CityIds,

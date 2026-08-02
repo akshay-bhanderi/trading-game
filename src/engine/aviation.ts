@@ -230,7 +230,7 @@
 
 import { CONFIG, YEAR_LENGTH_DAYS } from './config'
 import { CITIES } from './data/cities'
-import type { BankSize, CityId, GameState, Plane, PlaneClass, PlaneId, PlaneStatus } from './types'
+import type { BankSize, CityId, GameState, LeaseExpiryNotice, Plane, PlaneClass, PlaneId, PlaneStatus } from './types'
 import type { EventResolution } from './events/resolution'
 import type { Rng } from './rng'
 
@@ -558,6 +558,7 @@ export function accruePlaneIncome(state: GameState): GameState {
 
   let cashDelta = 0
   let changed = false
+  const newNotices: LeaseExpiryNotice[] = []
 
   const newPlanes = planes.map((plane) => {
     if (plane.groundedUntilDay !== undefined) {
@@ -579,6 +580,12 @@ export function accruePlaneIncome(state: GameState): GameState {
       const termEndDay = plane.annualLeaseStartDay + YEAR_LENGTH_DAYS
       if (state.day >= termEndDay) {
         changed = true
+        // USER-REQUESTED ADDITION (2026-08, lease-expiry alert) — a NATURAL
+        // term completion (never `terminateAnnualLease`'s player-initiated
+        // early exit, which doesn't go through this branch at all) is
+        // recorded so App.tsx can pop up a "renew?" prompt — see
+        // `LeaseExpiryNotice`'s own doc comment (types.ts).
+        newNotices.push({ planeId: plane.id, planeClass: plane.class, day: state.day })
         return { ...plane, status: 'idle' as PlaneStatus, annualLeaseStartDay: undefined }
       }
     }
@@ -593,7 +600,13 @@ export function accruePlaneIncome(state: GameState): GameState {
 
   if (cashDelta === 0 && !changed) return state
 
-  return { ...state, cash: state.cash + cashDelta, planes: newPlanes }
+  return {
+    ...state,
+    cash: state.cash + cashDelta,
+    planes: newPlanes,
+    leaseExpiryNotices:
+      newNotices.length > 0 ? [...(state.leaseExpiryNotices ?? []), ...newNotices] : state.leaseExpiryNotices,
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -496,6 +496,24 @@ export interface Plane {
   groundedUntilDay?: number
 }
 
+/**
+ * USER-REQUESTED ADDITION (2026-08, aviation lease-expiry alert) — one entry
+ * per Leased Annual firm term that completed NATURALLY (`accruePlaneIncome`,
+ * aviation.ts, auto-reverting the plane to `'idle'` once `state.day >=
+ * annualLeaseStartDay + YEAR_LENGTH_DAYS`), so App.tsx can pop up a "this
+ * lease just ended, renew?" prompt the same way `taxHistory` drives
+ * YearEndScreen. A player-initiated early exit (`terminateAnnualLease`) never
+ * appends one of these — the player already knows they just chose to end it.
+ * Leased Monthly never appears here either, for the same reason: its only
+ * "ends" path is `cancelMonthlyLease`, an explicit player action.
+ */
+export interface LeaseExpiryNotice {
+  planeId: PlaneId
+  planeClass: PlaneClass
+  /** The day the term actually ended (i.e. the day the plane reverted to `'idle'`). */
+  day: number
+}
+
 // ---------------------------------------------------------------------------
 // GameState — the top-level engine state
 // ---------------------------------------------------------------------------
@@ -916,4 +934,13 @@ export interface GameState {
    * visited".
    */
   lastVisitedDayByCity?: Record<CityId, number>
+
+  /**
+   * USER-REQUESTED ADDITION (2026-08, aviation lease-expiry alert) — every
+   * Leased Annual term that has completed naturally and not yet been shown
+   * to the player (App.tsx tracks an acknowledged-count index against this
+   * array, same pattern as `taxHistory`/`YearEndScreen`). `accruePlaneIncome`
+   * (aviation.ts) is the sole writer. `undefined` is equivalent to `[]`.
+   */
+  leaseExpiryNotices?: LeaseExpiryNotice[]
 }

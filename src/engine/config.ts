@@ -115,6 +115,17 @@ export const TRAVEL = {
 
 export const CARGO = {
   /**
+   * BUGFIX (2026-08): this field is now BOT-HARNESS/TEST-ONLY — real new
+   * games seed from `newGameStartingCapacity` (below) instead. Previously
+   * `newGame.ts` read `startingCapacity` (1,499) directly, so every real
+   * player started just 1 unit under the FIRST reachable upgrade tier
+   * (1,500): the "Upgrade cargo to 1,500 — $300,000" button only ever
+   * bought +1 unit of capacity for $300k, which read as flat-out broken
+   * (reported by a player as "upgrading 1499 to 1500... gives just 1
+   * cargo"). The 1,499 value itself is still exactly right for its
+   * ORIGINAL purpose — see the rest of this comment — it just was never
+   * meant to double as the real player's starting number too.
+   *
    * §2 doc value is 40 — T029 BALANCE-PASS OVERRIDE, raised to 1,499 (just
    * under the top of §2's own upgrade ladder, 1,500 — see below for why it
    * deliberately stops just short of that number). Root cause: none of the
@@ -144,12 +155,22 @@ export const CARGO = {
    * player-facing upgrade progression §2 describes — see cargo.test.ts's
    * "walks the upgrade path" test, updated alongside this change to walk
    * whatever tiers remain reachable (now just the last one, 1,500) rather
-   * than assuming a startingCapacity of 40. Real (non-bot) play is
-   * unaffected in spirit beyond a faster early game — this override mainly
-   * compensates for the bots' specific inability to invest in their own
-   * cargo upgrades.
+   * than assuming a startingCapacity of 40. Bot-harness play only, as of the
+   * 2026-08 bugfix above — real play now starts from `newGameStartingCapacity`
+   * instead, so this "just under the ladder" trick is purely an artifact of
+   * the bots' own inability to invest in cargo upgrades, not something a real
+   * player ever experiences.
    */
   startingCapacity: 1499,
+  /**
+   * The REAL player-facing starting capacity (2026-08 bugfix — see
+   * `startingCapacity`'s own comment for the full story of why that field
+   * stopped being safe to reuse here). Exactly §2's doc value, 40 — restores
+   * the full 5-tier upgrade progression (40→100→250→600→1,500→...) real
+   * players are supposed to see, instead of starting 1 unit under the first
+   * tier. `newGame.ts` is the sole reader.
+   */
+  newGameStartingCapacity: 40,
   /**
    * §2: fixed, ordered upgrade path — must be purchased in order (T011).
    * USER-REQUESTED ADDITION (2026-08): the doc's original ladder topped out

@@ -10,6 +10,7 @@ import AviationScreen from './screens/AviationScreen'
 import CAScreen from './screens/CAScreen'
 import NewspaperScreen from './screens/NewspaperScreen'
 import YearEndScreen from './screens/YearEndScreen'
+import LeaseExpiryScreen from './screens/LeaseExpiryScreen'
 import GameOverScreen from './screens/GameOverScreen'
 import RealEstateScreen from './screens/RealEstateScreen'
 import MenuScreen from './screens/MenuScreen'
@@ -35,6 +36,7 @@ function App() {
   const game = useGameStore((s) => s.game)
   const justSaved = useGameStore((s) => s.justSaved)
   const buildOrUpgradeHotel = useGameStore((s) => s.buildOrUpgradeHotel)
+  const setPlaneStatus = useGameStore((s) => s.setPlaneStatus)
   const [popup, setPopup] = useState<PopupKind>(null)
 
   // Detects a day advancing (now only ever via travel — a transit day, or
@@ -81,10 +83,16 @@ function App() {
   // with prior years: however many it already has) so re-opening an old
   // save never re-shows year-ends from a previous session.
   const [acknowledgedYearEnd, setAcknowledgedYearEnd] = useState(0)
+  // Same "acknowledged-count index" pattern as `acknowledgedYearEnd` above,
+  // applied to `game.leaseExpiryNotices` (aviation.ts's `accruePlaneIncome`
+  // appends one whenever a Leased Annual term completes naturally) — see
+  // LeaseExpiryScreen.tsx's own doc comment.
+  const [acknowledgedLeaseExpiry, setAcknowledgedLeaseExpiry] = useState(0)
   const wasGameNullRef = useRef(true)
   useEffect(() => {
     if (game && wasGameNullRef.current) {
       setAcknowledgedYearEnd(game.taxHistory.length)
+      setAcknowledgedLeaseExpiry(game.leaseExpiryNotices?.length ?? 0)
     }
     wasGameNullRef.current = !game
   }, [game])
@@ -92,21 +100,27 @@ function App() {
   // Automatic overlays take priority over whatever the player manually
   // opened, in this order: an outstanding default decision (the bank
   // literally will not let the player ignore it) beats an unshown year-end
-  // statement, which beats the player's own popup choice. Both automatic
-  // cases are pure derivations of `game`/`acknowledgedYearEnd` — recomputed
-  // every render, not tracked via a separate "is this open" flag — so
-  // dismissing one correctly reveals whichever is next without any extra
-  // coordination code. Computed here (above the early returns below) so it
-  // doubles as the single source of truth `useBackgroundMusic` reads to pick
-  // gameplay vs. menu music (T072) — see that hook's own doc comment.
+  // statement, which beats an unshown lease-expiry alert, which beats the
+  // player's own popup choice. All three automatic cases are pure
+  // derivations of `game`/the acknowledged-count indices — recomputed every
+  // render, not tracked via a separate "is this open" flag — so dismissing
+  // one correctly reveals whichever is next without any extra coordination
+  // code. Computed here (above the early returns below) so it doubles as the
+  // single source of truth `useBackgroundMusic` reads to pick gameplay vs.
+  // menu music (T072) — see that hook's own doc comment.
   const pendingYearEnd =
     game && game.taxHistory.length > acknowledgedYearEnd ? game.taxHistory[acknowledgedYearEnd] : undefined
-  const effectivePopup: PopupKind | 'yearend' | null = game
+  const leaseExpiryNotices = game?.leaseExpiryNotices ?? []
+  const pendingLeaseExpiry =
+    leaseExpiryNotices.length > acknowledgedLeaseExpiry ? leaseExpiryNotices[acknowledgedLeaseExpiry] : undefined
+  const effectivePopup: PopupKind | 'yearend' | 'leaseexpiry' | null = game
     ? game.awaitingDefaultDecision
       ? 'bank'
       : pendingYearEnd
         ? 'yearend'
-        : popup
+        : pendingLeaseExpiry
+          ? 'leaseexpiry'
+          : popup
     : null
 
   // No game yet (Title screen), the run just ended (Game Over takeover), or
@@ -219,6 +233,18 @@ function App() {
       {effectivePopup === 'yearend' && pendingYearEnd && (
         <PopupLayer title="Year-End" onClose={() => setAcknowledgedYearEnd((n) => n + 1)}>
           <YearEndScreen record={pendingYearEnd} onDismiss={() => setAcknowledgedYearEnd((n) => n + 1)} />
+        </PopupLayer>
+      )}
+      {effectivePopup === 'leaseexpiry' && pendingLeaseExpiry && (
+        <PopupLayer title="Aviation" onClose={() => setAcknowledgedLeaseExpiry((n) => n + 1)}>
+          <LeaseExpiryScreen
+            planeClass={pendingLeaseExpiry.planeClass}
+            onRenew={() => {
+              setPlaneStatus(pendingLeaseExpiry.planeId, 'leasedAnnual')
+              setAcknowledgedLeaseExpiry((n) => n + 1)
+            }}
+            onDismiss={() => setAcknowledgedLeaseExpiry((n) => n + 1)}
+          />
         </PopupLayer>
       )}
       <UpdateToast />

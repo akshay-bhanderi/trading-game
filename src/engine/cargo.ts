@@ -9,10 +9,12 @@
  * Pure TypeScript, zero React imports (see /src/engine/README.md).
  *
  * `GameState.cargoCapacity` is assumed to already be initialized to
- * `CONFIG.cargo.startingCapacity` (40) by whatever code seeds a fresh game
- * (out of scope for this task, T011 — this file only consumes
+ * `CONFIG.cargo.newGameStartingCapacity` (40) by whatever code seeds a fresh
+ * game (out of scope for this task, T011 — this file only consumes
  * `state.cargoCapacity` as-is and steps it forward through the upgrade
- * tiers).
+ * tiers). `CONFIG.cargo.startingCapacity` (1,499) is a DIFFERENT, bot-
+ * harness/test-only value — see that field's own comment (config.ts) for why
+ * the two must never be conflated again.
  *
  * Design decisions (documented per the task brief):
  *
