@@ -54,12 +54,34 @@
  *     or a generic emoji.
  *
  * ---------------------------------------------------------------------------
+ * 2026-08 addition: days-until-year-end, below the Day counter
+ * ---------------------------------------------------------------------------
+ * User-requested — a small second line under "Day N" showing how many days
+ * remain until the current 90-day fiscal year ends (§10). Computed directly
+ * from the `day` prop (`YEAR_LENGTH_DAYS - (day % YEAR_LENGTH_DAYS)`) rather
+ * than needing a new prop — `runYearEnd` (tax.ts) already fires exactly on
+ * multiples of `YEAR_LENGTH_DAYS`, so this stays in sync with no extra
+ * wiring.
+ *
+ * ---------------------------------------------------------------------------
+ * 2026-08: Stay button removed entirely (user-requested)
+ * ---------------------------------------------------------------------------
+ * Stay used to let the player advance a day without traveling anywhere
+ * (App.tsx owned a confirm dialog in front of the actual `stay()` store
+ * call). Removed completely, by explicit request — traveling is now the
+ * only way to advance a day. `onStayRequest`/`showStayConfirm` are gone
+ * from both this component and App.tsx; the store's own `stay()` action
+ * (gameStore.ts) is left as-is (unused by the UI, but not deleted — a
+ * separate, later call if the store's action surface itself needs pruning).
+ *
+ * ---------------------------------------------------------------------------
  * T074 (Phase 17): bottom-bar + menu-button icons → text labels
  * ---------------------------------------------------------------------------
- *   - The `.hud-bottom` buttons (Bank/Newspaper/Stay/Travel/Market/
+ *   - The `.hud-bottom` buttons (Bank/Newspaper/Travel/Market/
  *     Warehouse/Real Estate/Aviation/Accountant — a 9th, Accountant, added
  *     2026-08 per user request to give CA hiring its own tab beside
- *     Aviation instead of living inside Bank) and `.hud-menu-btn` now render their
+ *     Aviation instead of living inside Bank; Stay removed 2026-08, see
+ *     above) and `.hud-menu-btn` now render their
  *     `aria-label` string as visible text instead of an icon glyph/emoji —
  *     user-directed change, see tasks/phase-17-hud-text-buttons.md. This
  *     orphaned `BankIcon`/`CompassIcon`/`SkylineIcon`/`BedIcon`/`MenuIcon`
@@ -71,6 +93,7 @@
 
 import { CargoIcon, CoinIcon, HotelIcon } from './PixelIcons'
 import { formatMoney } from '../format'
+import { YEAR_LENGTH_DAYS } from '../../engine/config'
 
 export type PopupKind =
   | 'market'
@@ -91,10 +114,6 @@ interface HudProps {
   cargoUsed: number
   cargoCapacity: number
   onOpen: (popup: Exclude<PopupKind, null>) => void
-  /** Requests confirmation before advancing the day — App.tsx owns the
-   * actual confirm dialog + the `stay()` call, this just signals the intent
-   * (see App.tsx's `showStayConfirm` state). */
-  onStayRequest: () => void
   justSaved: boolean
   /** True when the CURRENT city's hotel is not yet owned by the player —
    * gates the "buy hotel here" chip below (§12/§15). */
@@ -111,7 +130,6 @@ export default function Hud({
   cargoUsed,
   cargoCapacity,
   onOpen,
-  onStayRequest,
   justSaved,
   currentCityHotelUnowned,
   onBuyHotelHere,
@@ -132,6 +150,7 @@ export default function Hud({
         <div className="hud-top">
           <div className="hud-chip hud-city">
             <span className="hud-day">Day {day}</span>
+            <span className="hud-year-end">Year ends in {YEAR_LENGTH_DAYS - (day % YEAR_LENGTH_DAYS)}d</span>
           </div>
           <div className="hud-chip hud-wallet">
             <span className="icon-label">
@@ -159,9 +178,6 @@ export default function Hud({
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('newspaper')} aria-label="Newspaper">
           Newspaper
-        </button>
-        <button className="hud-icon-btn" onClick={onStayRequest} aria-label="Stay">
-          Stay
         </button>
         <button className="hud-icon-btn" onClick={() => onOpen('travel')} aria-label="Travel">
           Travel

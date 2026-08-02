@@ -1,11 +1,21 @@
 /**
- * Warehouse screen (T052, §14 "Warehouse Storage") — vertical building
- * elevation, one row per floor (per §14's graphic description: "lit/filled =
- * built, dim outline = not yet built and purchasable inline. Each built
- * floor is its own mini used/free capacity bar; stacked, they read as one
- * building-height meter. Same bar-fill visual language as the Market
- * screen's cargo bar, for consistency"), plus store/withdraw controls, an
- * insurance toggle, and a sell-back button.
+ * Warehouse screen (T052, §14 "Warehouse Storage") — store/withdraw
+ * controls, a floor-count summary, an insurance toggle, and a sell-back
+ * button.
+ *
+ * ---------------------------------------------------------------------------
+ * COMPACTED (2026-08, user-requested) — the old per-floor building
+ * elevation is gone
+ * ---------------------------------------------------------------------------
+ * This screen used to render a vertical building graphic, one row per
+ * floor, each with its own mini used/free capacity bar (per §14's original
+ * graphic description). The user explicitly asked for that removed: no
+ * per-floor breakdown, no Ground/Penthouse naming, no visual "building" at
+ * all — just a floor COUNT ("Floors: N/6") plus a Build button when not
+ * maxed, and ONE overall capacity bar for the whole warehouse (not broken
+ * down per floor). `CONFIG.warehouse.floors` is still keyed by floor number
+ * under the hood (unchanged, engine-side) — only this screen's rendering
+ * collapsed from "one row per floor" down to a single summary line.
  *
  * ---------------------------------------------------------------------------
  * SCOPE JUDGMENT CALL — this screen only ever acts on `game.currentCity`
@@ -24,24 +34,6 @@
  * (§9's own "no cross-city banking" precedent). This is a UI-scope
  * simplification only; the underlying engine functions remain fully
  * general or cross-referenced from the file-level docs above.
- *
- * ---------------------------------------------------------------------------
- * "Stacked to read as one building-height meter" — per-floor fill
- * ---------------------------------------------------------------------------
- * `state.warehouseGoods` tracks a single POOLED per-city quantity, not a
- * separate figure per floor (there is no "floor 3's own goods" concept in
- * the engine — capacity is just cumulative). To still render "each built
- * floor is its own mini used/free capacity bar" per §14, this screen derives
- * a per-floor fill by treating the total stored quantity as filling the
- * building from the GROUND UP: floor 1's bar fills first (0 up to its own
- * `capacityAdded`), then floor 2's, and so on. This is a pure display
- * derivation (`floorFill` below) — it has no bearing on which actual goods
- * are "in" which floor (the engine tracks no such distinction; a `sell`
- * or `fire` destruction touches the pooled total, not any one floor).
- *
- * Floors are rendered top-down (6/Penthouse at the top, 1/Ground at the
- * bottom) to match a real building's elevation, per §14's own "Ground"/
- * "Penthouse" floor-1/floor-6 naming.
  */
 
 import { useEffect, useState } from 'react'
@@ -230,58 +222,27 @@ export default function WarehouseScreen() {
   const remainingCargoCapacity = Math.max(0, game.cargoCapacity - cargoUsed(game))
 
   const nextFloor = floorsBuilt < CONFIG.warehouse.maxFloors ? floorsBuilt + 1 : null
-
-  // Per-floor "fill from the ground up" derivation — see file header.
-  function floorFill(floor: number): { floorUsed: number; floorCapacity: number } {
-    const tier = CONFIG.warehouse.floors[floor]
-    if (!tier) return { floorUsed: 0, floorCapacity: 0 }
-    const floorStart = tier.cumulativeCapacity - tier.capacityAdded
-    const floorUsed = Math.max(0, Math.min(tier.capacityAdded, used - floorStart))
-    return { floorUsed, floorCapacity: tier.capacityAdded }
-  }
-
-  const floorNumbers = Array.from({ length: CONFIG.warehouse.maxFloors }, (_, i) => CONFIG.warehouse.maxFloors - i)
+  const nextFloorTier = nextFloor !== null ? CONFIG.warehouse.floors[nextFloor] : null
 
   return (
     <div className="warehouse-screen">
-      <div className="card warehouse-elevation">
-        <h2>Building — {capacity > 0 ? `${used}/${capacity} stored` : 'No warehouse yet'}</h2>
-        {floorNumbers.map((floor) => {
-          const built = floor <= floorsBuilt
-          const tier = CONFIG.warehouse.floors[floor]
-          const isNextFloor = floor === nextFloor
-
-          if (built) {
-            const { floorUsed, floorCapacity } = floorFill(floor)
-            return (
-              <div key={floor} className="warehouse-floor warehouse-floor--built">
-                <span className="warehouse-floor-label">
-                  {floor === 1 ? 'Floor 1 (Ground)' : floor === 6 ? 'Floor 6 (Penthouse)' : `Floor ${floor}`}
-                </span>
-                <CapacityBar used={floorUsed} capacity={floorCapacity} />
-              </div>
-            )
-          }
-
-          return (
-            <div key={floor} className="warehouse-floor warehouse-floor--unbuilt">
-              <span className="warehouse-floor-label muted">
-                {floor === 1 ? 'Floor 1 (Ground)' : floor === 6 ? 'Floor 6 (Penthouse)' : `Floor ${floor}`}
-              </span>
-              {isNextFloor && tier ? (
-                <button
-                  className="secondary warehouse-build-btn"
-                  disabled={game.cash < tier.buildCost}
-                  onClick={() => buildWarehouseFloor(cityId)}
-                >
-                  Build — ${formatMoney(tier.buildCost)}
-                </button>
-              ) : (
-                <span className="muted warehouse-floor-locked">Locked</span>
-              )}
-            </div>
-          )
-        })}
+      <div className="card warehouse-summary">
+        <div className="row">
+          <span>Floors</span>
+          <strong>
+            {floorsBuilt}/{CONFIG.warehouse.maxFloors}
+          </strong>
+        </div>
+        {capacity > 0 && <CapacityBar used={used} capacity={capacity} label="Stored" />}
+        {nextFloorTier && (
+          <button
+            className="secondary warehouse-build-btn"
+            disabled={game.cash < nextFloorTier.buildCost}
+            onClick={() => buildWarehouseFloor(cityId)}
+          >
+            Build floor {nextFloor} — ${formatMoney(nextFloorTier.buildCost)}
+          </button>
+        )}
       </div>
 
       {floorsBuilt > 0 && (

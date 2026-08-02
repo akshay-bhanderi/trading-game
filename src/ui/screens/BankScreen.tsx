@@ -15,6 +15,12 @@
  *     (`AmountStepper` below), instead of a bare number input.
  *   - CA hiring moved OUT of this screen entirely, into its own HUD tab
  *     beside Aviation (see CAScreen.tsx) — this screen no longer renders it.
+ *   - FURTHER COMPACTED: Deposit/Withdraw (previously their own card, a
+ *     2-tab switcher) and Loan (previously a second, always-expanded card)
+ *     are now ONE card with a single 3-tab switcher (Deposit / Withdraw /
+ *     Loan) on one line. Tapping Loan reveals exactly the same loan
+ *     details/instructions/buttons as before — nothing about the loan
+ *     logic itself changed, only where it's tucked away until tapped.
  */
 
 import { useEffect, useState } from 'react'
@@ -108,7 +114,7 @@ function AmountStepper({
   )
 }
 
-type DepositMode = 'deposit' | 'withdraw'
+type BankTab = 'deposit' | 'withdraw' | 'loan'
 
 export default function BankScreen() {
   const game = useGameStore((s) => s.game)
@@ -118,7 +124,7 @@ export default function BankScreen() {
   const repayLoan = useGameStore((s) => s.repayLoan)
   const resolveDefault = useGameStore((s) => s.resolveDefault)
 
-  const [depositMode, setDepositMode] = useState<DepositMode>('deposit')
+  const [activeTab, setActiveTab] = useState<BankTab>('deposit')
 
   if (!game) return null
 
@@ -175,39 +181,45 @@ export default function BankScreen() {
   return (
     <div className="bank-screen">
       <div className="card">
-        <h2>Bank Balance</h2>
+        <h2>Bank</h2>
         <div className="row">
           <span>Balance (any city)</span>
           <strong>${formatMoney(depositBalance)}</strong>
         </div>
 
-        <div className="trade-tabs">
+        <div className="trade-tabs bank-tabs">
           <button
-            className={depositMode === 'deposit' ? 'trade-tab trade-tab--active' : 'trade-tab secondary'}
+            className={activeTab === 'deposit' ? 'trade-tab trade-tab--active' : 'trade-tab secondary'}
             disabled={game.cash < 1}
-            onClick={() => setDepositMode('deposit')}
+            onClick={() => setActiveTab('deposit')}
           >
             Deposit
           </button>
           <button
-            className={
-              depositMode === 'withdraw' ? 'trade-tab trade-tab--active trade-tab--sell' : 'trade-tab secondary'
-            }
+            className={activeTab === 'withdraw' ? 'trade-tab trade-tab--active trade-tab--sell' : 'trade-tab secondary'}
             disabled={depositBalance < 1}
-            onClick={() => setDepositMode('withdraw')}
+            onClick={() => setActiveTab('withdraw')}
           >
             Withdraw
           </button>
+          <button
+            className={activeTab === 'loan' ? 'trade-tab trade-tab--active' : 'trade-tab secondary'}
+            onClick={() => setActiveTab('loan')}
+          >
+            Loan
+          </button>
         </div>
 
-        {depositMode === 'deposit' ? (
+        {activeTab === 'deposit' && (
           <AmountStepper
             max={Math.floor(game.cash)}
             onConfirm={(amt) => deposit(amt)}
             confirmLabel={(amt) => `Deposit $${amt}`}
             emptyText="No cash on hand to deposit."
           />
-        ) : (
+        )}
+
+        {activeTab === 'withdraw' && (
           <AmountStepper
             max={Math.floor(depositBalance)}
             onConfirm={(amt) => withdraw(amt)}
@@ -216,47 +228,51 @@ export default function BankScreen() {
             emptyText="Nothing deposited to withdraw."
           />
         )}
-      </div>
 
-      <div className="card">
-        <h2>Loan — {city?.name ?? game.currentCity}</h2>
-        <p className="muted">Loans stay tied to this city's bank — you must be here to take or repay one.</p>
-
-        {account?.loan ? (
+        {activeTab === 'loan' && (
           <>
-            <div className="row muted">
-              <span>Principal</span>
-              <span>${formatMoney(account.loan.principal)}</span>
-            </div>
-            <div className="row muted">
-              <span>Accrued interest</span>
-              <span>${formatMoney(account.loan.accruedInterest)}</span>
-            </div>
+            <p className="muted">
+              Loan — {city?.name ?? game.currentCity}. Loans stay tied to this city's bank — you must be here to
+              take or repay one.
+            </p>
 
-            <AmountStepper
-              max={Math.min(Math.floor(game.cash), Math.ceil(outstanding))}
-              onConfirm={(amt) => repayLoan(game.currentCity, Math.min(amt, outstanding))}
-              confirmLabel={(amt) => `Repay $${amt}`}
-              emptyText="No cash on hand to repay with."
-            />
+            {account?.loan ? (
+              <>
+                <div className="row muted">
+                  <span>Principal</span>
+                  <span>${formatMoney(account.loan.principal)}</span>
+                </div>
+                <div className="row muted">
+                  <span>Accrued interest</span>
+                  <span>${formatMoney(account.loan.accruedInterest)}</span>
+                </div>
 
-            <button
-              className="secondary"
-              disabled={game.cash < outstanding}
-              onClick={() => repayLoan(game.currentCity, outstanding)}
-            >
-              Repay Full (${formatMoney(outstanding)})
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="muted">No active loan here. Max available: ${formatMoney(maxLoan)}.</p>
-            <AmountStepper
-              max={Math.floor(maxLoan)}
-              onConfirm={(amt) => takeLoan(game.currentCity, amt)}
-              confirmLabel={(amt) => `Take Loan $${amt}`}
-              emptyText="No loan available at this bank."
-            />
+                <AmountStepper
+                  max={Math.min(Math.floor(game.cash), Math.ceil(outstanding))}
+                  onConfirm={(amt) => repayLoan(game.currentCity, Math.min(amt, outstanding))}
+                  confirmLabel={(amt) => `Repay $${amt}`}
+                  emptyText="No cash on hand to repay with."
+                />
+
+                <button
+                  className="secondary"
+                  disabled={game.cash < outstanding}
+                  onClick={() => repayLoan(game.currentCity, outstanding)}
+                >
+                  Repay Full (${formatMoney(outstanding)})
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="muted">No active loan here. Max available: ${formatMoney(maxLoan)}.</p>
+                <AmountStepper
+                  max={Math.floor(maxLoan)}
+                  onConfirm={(amt) => takeLoan(game.currentCity, amt)}
+                  confirmLabel={(amt) => `Take Loan $${amt}`}
+                  emptyText="No loan available at this bank."
+                />
+              </>
+            )}
           </>
         )}
       </div>

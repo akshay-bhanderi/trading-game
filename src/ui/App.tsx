@@ -17,7 +17,6 @@ import HubScene from './scene/HubScene'
 import Hud, { type PopupKind } from './components/Hud'
 import PopupLayer from './components/PopupLayer'
 import DayTransition from './components/DayTransition'
-import ConfirmDialog from './components/ConfirmDialog'
 import UpdateToast from './components/UpdateToast'
 import { CITIES } from '../engine/data/cities'
 import { cargoUsed } from '../engine/cargo'
@@ -34,22 +33,16 @@ const TRANSITION_DURATION_MS = 1100
 
 function App() {
   const game = useGameStore((s) => s.game)
-  const stay = useGameStore((s) => s.stay)
   const justSaved = useGameStore((s) => s.justSaved)
   const buildOrUpgradeHotel = useGameStore((s) => s.buildOrUpgradeHotel)
   const [popup, setPopup] = useState<PopupKind>(null)
-  // Confirmation gate in front of `stay()` — advancing the day is a
-  // one-tap action right next to Travel/Market in the HUD, easy to hit by
-  // accident; this makes it a deliberate two-tap action instead. Plain
-  // component state (not tied to `PopupKind`) since a `ConfirmDialog` is a
-  // short yes/no interrupt, not a browsable panel.
-  const [showStayConfirm, setShowStayConfirm] = useState(false)
 
-  // Detects a day advancing (Stay) or the current city changing (Travel
-  // completing) and shows a brief DayTransition overlay marking the moment
-  // — see that component's own doc comment for why this exists. Tracks the
-  // PREVIOUS day/city in refs (not state) purely to diff against on the
-  // next render, without itself triggering a re-render.
+  // Detects a day advancing (now only ever via travel — a transit day, or
+  // arrival — since the Stay button was removed entirely, 2026-08) or the
+  // current city changing and shows a brief DayTransition overlay marking
+  // the moment — see that component's own doc comment for why this exists.
+  // Tracks the PREVIOUS day/city in refs (not state) purely to diff against
+  // on the next render, without itself triggering a re-render.
   const prevDayRef = useRef<number | undefined>(undefined)
   const prevCityRef = useRef<string | undefined>(undefined)
   const [transition, setTransition] = useState<{ key: number; message: string; variant: 'day' | 'travel' } | null>(
@@ -162,25 +155,12 @@ function App() {
         cargoUsed={cargoUsed(game)}
         cargoCapacity={game.cargoCapacity}
         onOpen={setPopup}
-        onStayRequest={() => setShowStayConfirm(true)}
         justSaved={justSaved}
         currentCityHotelUnowned={!isHotelOwnedByPlayer(game, game.currentCity)}
         onBuyHotelHere={() => buildOrUpgradeHotel(game.currentCity)}
       />
 
       {transition && <DayTransition key={transition.key} message={transition.message} variant={transition.variant} />}
-
-      {showStayConfirm && (
-        <ConfirmDialog
-          message="Move to the next day? Prices will shift and today's paper closes out."
-          confirmLabel="Advance"
-          onConfirm={() => {
-            setShowStayConfirm(false)
-            stay()
-          }}
-          onCancel={() => setShowStayConfirm(false)}
-        />
-      )}
 
       {effectivePopup === 'market' && (
         <PopupLayer title="Market" onClose={() => setPopup(null)}>
