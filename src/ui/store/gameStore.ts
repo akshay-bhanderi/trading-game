@@ -70,8 +70,16 @@ interface GameStoreState {
   /** User-requested (2026-08): buy straight into / sell straight out of the
    * current city's warehouse from the Market screen, bypassing cargo. No-op
    * (engine-rejected) unless a warehouse is actually built there. See
-   * warehouse.ts's `buyIntoWarehouse`/`sellFromWarehouse`. */
-  buyIntoWarehouse: (goodId: GoodId, qty: number) => void
+   * warehouse.ts's `buyIntoWarehouse`/`sellFromWarehouse`.
+   *
+   * `buyIntoWarehouse` takes an explicit `targetCityId` (2026-08,
+   * user-requested) — it can deposit into ANY city's warehouse, not just
+   * the current one, always priced off the CURRENT city's live price (the
+   * engine has no presence check for this one action; see warehouse.ts's
+   * file header for the full rationale). `sellFromWarehouse` stays scoped
+   * to the current city only — no target param, matches the engine's
+   * unchanged presence gate there. */
+  buyIntoWarehouse: (targetCityId: CityId, goodId: GoodId, qty: number) => void
   sellFromWarehouse: (goodId: GoodId, qty: number) => void
   travelTo: (cityId: CityId) => void
   stay: () => void
@@ -208,12 +216,15 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     commit(set, refreshUnlocks(engineSell(game, goodId, qty, price)))
   },
 
-  buyIntoWarehouse: (goodId, qty) => {
+  buyIntoWarehouse: (targetCityId, goodId, qty) => {
     const { game } = get()
     if (!game) return
+    // Always priced off the CURRENT city's live price, even when
+    // targetCityId is a remote warehouse — see this action's own doc
+    // comment above / warehouse.ts's file header for why.
     const price = game.priceStates[game.currentCity]?.[goodId]?.currentPrice
     if (price === undefined) return
-    commit(set, refreshUnlocks(engineBuyIntoWarehouse(game, game.currentCity, goodId, qty, price)))
+    commit(set, refreshUnlocks(engineBuyIntoWarehouse(game, targetCityId, goodId, qty, price)))
   },
 
   sellFromWarehouse: (goodId, qty) => {

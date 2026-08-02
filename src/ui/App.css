@@ -16,6 +16,13 @@
 html,
 body {
   overscroll-behavior-y: contain;
+  /* User-requested (2026-08): mobile should never scroll at the page level
+     — the app frame fills the viewport exactly instead. Safe on desktop
+     too since .app-frame's own content already had its own overflow
+     handling there (see the @media block below and .screen/.popup-body's
+     own overflow-y: auto for any content that genuinely needs to scroll). */
+  overflow: hidden;
+  height: 100%;
 }
 
 * {
@@ -77,8 +84,12 @@ body {
   font-family: var(--font-body);
 }
 
+/* Mobile (default/base — below 420px): fills the viewport exactly, 100%
+   width x 100% height, no outer scroll. User-requested (2026-08); desktop
+   (see the @media block below) keeps its existing fixed-360px framed-card
+   look unchanged. */
 .app-frame {
-  width: 360px;
+  width: 100%;
   height: 100vh;
   height: 100dvh;
   margin: 0 auto;
@@ -88,14 +99,15 @@ body {
   flex-direction: column;
   border: 4px solid var(--ink);
   box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.55);
+  overflow: hidden;
 }
 
 @media (min-width: 420px) {
   .app-frame {
+    width: 360px;
     height: calc(100vh - 48px);
     height: calc(100dvh - 48px);
     margin: 24px auto;
-    overflow: hidden;
   }
 }
 
@@ -333,6 +345,11 @@ body {
   flex-direction: column;
   padding: 16px;
   gap: 12px;
+  /* .app-frame itself never scrolls (see its own rule) — if this screen's
+     content is ever taller than the frame, IT scrolls internally instead
+     of clipping, same pattern .popup-body already uses for popups. */
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .screen-transition {
@@ -624,6 +641,18 @@ button.secondary {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+/* Warehouse's Store/Withdraw/Buy switcher (2026-08, user-requested: Buy
+   works for any city's warehouse remotely) — same 3-column treatment. */
+.warehouse-tabs {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* Warehouse screen's city picker (2026-08, user-requested: manage any
+   unlocked city's warehouse without traveling there first). */
+.warehouse-city-picker {
+  width: 100%;
+}
+
 .trade-tab--active {
   background: var(--accent);
 }
@@ -851,9 +880,28 @@ button.secondary {
 
 .year-end-screen,
 .game-over-screen {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.error-boundary {
+  padding: 20px 16px;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.error-boundary-detail {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--paper-dark);
+  border: 2px solid var(--wood);
+  padding: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
 }
 
 .game-over-chart-placeholder {

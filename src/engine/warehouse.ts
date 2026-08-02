@@ -551,29 +551,47 @@ export function withdrawGoods(state: GameState, cityId: CityId, goodId: GoodId, 
 // ---------------------------------------------------------------------------
 // Market <-> Warehouse direct trading (user-requested, 2026-08)
 // ---------------------------------------------------------------------------
-// Lets the Market screen buy straight into a city's warehouse, or sell
-// straight out of it, without manually shuttling goods through cargo first.
-// Mirror trade.ts's `buy`/`sell` almost exactly (same validation shape, same
-// cash/cumulativeTradeVolume/realizedProfitThisFiscalYear accounting — a
-// warehouse sale realizes profit exactly like a cargo sale per §10, and a
-// warehouse purchase spends real cash exactly like a cargo purchase), just
-// targeting `state.warehouseGoods[cityId]` instead of `state.cargo`, with an
-// ADDITIONAL warehouse-capacity check on the buy side (mirroring
-// `storeGoods`'s capacity check above) since a warehouse, unlike cargo, has
-// its own separate capacity ceiling. Both require physical presence
-// (`state.currentCity === cityId`) — same "no remote trading, ever" rule
-// §14/§6 already apply to every other warehouse/market action.
+// Lets the Market/Warehouse screens buy straight into a city's warehouse, or
+// sell straight out of it, without manually shuttling goods through cargo
+// first. Mirror trade.ts's `buy`/`sell` almost exactly (same validation
+// shape, same cash/cumulativeTradeVolume/realizedProfitThisFiscalYear
+// accounting — a warehouse sale realizes profit exactly like a cargo sale
+// per §10, and a warehouse purchase spends real cash exactly like a cargo
+// purchase), just targeting `state.warehouseGoods[cityId]` instead of
+// `state.cargo`, with an ADDITIONAL warehouse-capacity check on the buy side
+// (mirroring `storeGoods`'s capacity check above) since a warehouse, unlike
+// cargo, has its own separate capacity ceiling.
+//
+// PRESENCE RULE — DELIBERATELY ASYMMETRIC as of 2026-08 (user-requested)
+// `sellFromWarehouse` still requires physical presence (`state.currentCity
+// === cityId`) — same "no remote trading, ever" rule §14/§6 apply to every
+// other warehouse/market action. `buyIntoWarehouse`, by explicit user
+// choice, does NOT: a purchase can target ANY city with a built warehouse
+// floor, regardless of where the player currently is. The caller (UI) is
+// responsible for sourcing `unitPrice` from the player's CURRENT city's live
+// price (per the user's own choice among the alternatives — using the
+// remote city's stale last-seen price, or disallowing remote buying
+// entirely, were both explicitly rejected) — this function itself has no
+// opinion on where `unitPrice` came from, exactly like `trade.ts`'s `buy`
+// already didn't. Reasonable in-fiction reading: the player is arranging a
+// purchase-and-ship-to-storage order at whatever price they can currently
+// see, not teleporting into a market they can't observe.
 
 /**
  * Buys `qty` units of `goodId` at `unitPrice` directly into `cityId`'s
  * warehouse (never touching cargo).
  *
  * Validates:
- *   - `state.currentCity === cityId`
  *   - `qty > 0`
  *   - `state.cash >= qty * unitPrice`
  *   - the city has at least one warehouse floor built
  *   - `warehouseGoodsUsed(state, cityId) + qty <= warehouseCapacity(state, cityId)`
+ *
+ * Deliberately NO presence check — `cityId` may be ANY city with a built
+ * warehouse floor, regardless of `state.currentCity`. See this section's
+ * file header ("PRESENCE RULE — DELIBERATELY ASYMMETRIC") for the full
+ * 2026-08 user-requested rationale; `sellFromWarehouse` below is NOT
+ * relaxed the same way.
  *
  * On success: deducts `qty * unitPrice` from cash, appends a new FIFO lot to
  * `state.warehouseGoods[cityId][goodId]`, and increments
@@ -584,7 +602,6 @@ export function withdrawGoods(state: GameState, cityId: CityId, goodId: GoodId, 
  * validation fails.
  */
 export function buyIntoWarehouse(state: GameState, cityId: CityId, goodId: GoodId, qty: number, unitPrice: number): GameState {
-  if (state.currentCity !== cityId) return state
   if (qty <= 0) return state
 
   const cost = qty * unitPrice

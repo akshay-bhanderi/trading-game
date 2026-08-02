@@ -3,12 +3,14 @@ import { CONFIG } from './config'
 import {
   accrueWarehouseMaintenanceDebtInterest,
   buildWarehouseFloor,
+  buyIntoWarehouse,
   buyWarehouseInsurance,
   calcWarehouseAnnualBill,
   calcWarehouseGoodsValue,
   checkWarehouseFires,
   cumulativeBuildCost,
   repayWarehouseMaintenanceDebt,
+  sellFromWarehouse,
   sellWarehouse,
   storeGoods,
   warehouseCapacity,
@@ -396,6 +398,74 @@ describe('sellWarehouse', () => {
   it('rejects a city with no warehouse owned', () => {
     const state = makeState()
     expect(sellWarehouse(state, 'farrow')).toBe(state)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Market <-> Warehouse direct trading (2026-08) — deliberately asymmetric
+// presence rule: buyIntoWarehouse allows ANY city remotely (user-requested),
+// sellFromWarehouse stays presence-gated (user's own choice, unchanged).
+// ---------------------------------------------------------------------------
+
+describe('buyIntoWarehouse', () => {
+  it('succeeds targeting a REMOTE city (currentCity !== cityId) — no presence check, by design', () => {
+    const state = makeState({
+      currentCity: 'farrow',
+      cash: 1_000,
+      warehouses: { saltmere: { floorsBuilt: 1, insured: false } },
+    })
+    const result = buyIntoWarehouse(state, 'saltmere', 'grain', 10, 5)
+
+    expect(result).not.toBe(state)
+    expect(result.cash).toBe(950)
+    expect(result.warehouseGoods?.saltmere?.grain?.qty).toBe(10)
+    // Never touches the player's cargo or the current city's warehouse.
+    expect(result.cargo).toEqual({})
+    expect(result.warehouseGoods?.farrow).toBeUndefined()
+  })
+
+  it('still rejects when the target city has no warehouse floor built at all', () => {
+    const state = makeState({ currentCity: 'farrow', cash: 1_000 })
+    expect(buyIntoWarehouse(state, 'saltmere', 'grain', 10, 5)).toBe(state)
+  })
+
+  it('still rejects when it would exceed the target warehouse\'s capacity', () => {
+    const state = makeState({
+      currentCity: 'farrow',
+      cash: 1_000_000,
+      warehouses: { saltmere: { floorsBuilt: 1, insured: false } },
+    })
+    const capacity = warehouseCapacity(state, 'saltmere')
+    expect(buyIntoWarehouse(state, 'saltmere', 'grain', capacity + 1, 1)).toBe(state)
+  })
+
+  it('still rejects insufficient cash', () => {
+    const state = makeState({
+      currentCity: 'farrow',
+      cash: 10,
+      warehouses: { saltmere: { floorsBuilt: 1, insured: false } },
+    })
+    expect(buyIntoWarehouse(state, 'saltmere', 'grain', 10, 5)).toBe(state)
+  })
+})
+
+describe('sellFromWarehouse', () => {
+  it('rejects targeting a city the player is NOT currently in — presence still required, unlike buyIntoWarehouse', () => {
+    const state = makeState({
+      currentCity: 'farrow',
+      warehouseGoods: { saltmere: { grain: { goodId: 'grain', qty: 10, avgBuyCost: 5, lots: [{ qty: 10, unitCost: 5 }] } } },
+    })
+    expect(sellFromWarehouse(state, 'saltmere', 'grain', 5, 5)).toBe(state)
+  })
+
+  it('succeeds when the player IS in that city', () => {
+    const state = makeState({
+      currentCity: 'saltmere',
+      warehouseGoods: { saltmere: { grain: { goodId: 'grain', qty: 10, avgBuyCost: 5, lots: [{ qty: 10, unitCost: 5 }] } } },
+    })
+    const result = sellFromWarehouse(state, 'saltmere', 'grain', 5, 8)
+    expect(result.cash).toBe(40)
+    expect(result.warehouseGoods?.saltmere?.grain?.qty).toBe(5)
   })
 })
 

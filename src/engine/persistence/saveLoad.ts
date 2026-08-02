@@ -77,7 +77,74 @@ function migrate(envelope: SaveEnvelope): GameState {
     state = { ...state, deposit: pooled, bankAccounts: migratedAccounts }
   }
 
+  state = reclaimOrphanedDepositBalances(state)
+
   return state
+}
+
+/**
+ * USER-REPORTED BUG FIX (2026-08): "deposited $100k, switched city, it
+ * vanished, can't withdraw from any city." Root cause: the v1->v2 migration
+ * above only reclaims a stray per-city `depositBalance` when the save's OWN
+ * `schemaVersion` tag is still < 2. But a save can end up carrying leftover
+ * `depositBalance` data on an account EVEN WHEN IT'S ALREADY TAGGED v2 — if,
+ * during the deploy that introduced the pooled-deposit redesign, a browser
+ * tab kept running the OLD bank code (which still called `deposit(state,
+ * cityId, amount)`, writing straight to `bankAccounts[cityId].
+ * depositBalance`) against a GameState object that had ALREADY been migrated
+ * to the new schema for that same session. The schema-version check alone
+ * can't catch this, because the save gets re-written (via the normal
+ * auto-save-on-every-action path, `saveGame`) with the CURRENT
+ * `SCHEMA_VERSION` (2) every time, regardless of which code version actually
+ * produced the data inside it.
+ *
+ * This function is therefore UNCONDITIONAL — it runs on every load,
+ * regardless of `schemaVersion` — and simply reclaims any stray, VALID
+ * (finite, positive) `depositBalance` still sitting on any `bankAccounts`
+ * entry into the pooled `state.deposit` field, then strips the field. This
+ * is a no-op (returns the state unchanged in shape, cheap to check) for the
+ * overwhelmingly common case where no such stray data exists.
+ *
+ * Known limitation, disclosed rather than silently swallowed: if the old
+ * code's write happened as `existing.depositBalance + amount` where
+ * `existing.depositBalance` was already `undefined` (the normal case for an
+ * account created fresh under the new schema), the result is `NaN`, not a
+ * recoverable number — JS arithmetic destroys the original amount the
+ * instant it happens, there is nothing left in the data to reconstruct it
+ * from. This function explicitly does NOT fold `NaN`/non-finite values into
+ * the pool (would corrupt the balance further) — it only strips them out as
+ * dead weight. A player whose deposit was lost this specific way cannot be
+ * automatically restored by this function; that requires a manual, explicit
+ * data repair (crediting a known amount back) once the true lost amount is
+ * confirmed with them directly.
+ */
+function reclaimOrphanedDepositBalances(state: GameState): GameState {
+  let pooled = state.deposit ?? 0
+  let foundAny = false
+  const cleanedAccounts: GameState['bankAccounts'] = {}
+
+  for (const cityId in state.bankAccounts) {
+    const account = state.bankAccounts[cityId]
+    if (!account) continue
+
+    const stray = (account as unknown as { depositBalance?: unknown }).depositBalance
+    if (stray !== undefined) {
+      foundAny = true
+      if (typeof stray === 'number' && Number.isFinite(stray) && stray > 0) {
+        pooled += stray
+      }
+      // Rebuild the account without the stray field (whether or not its
+      // value was recoverable) — `bankAccounts[cityId]` should only ever
+      // have `cityId`/`loan` under the current schema.
+      cleanedAccounts[cityId] = { cityId: account.cityId, loan: account.loan }
+    } else {
+      cleanedAccounts[cityId] = account
+    }
+  }
+
+  if (!foundAny) return state
+
+  return { ...state, deposit: pooled, bankAccounts: cleanedAccounts }
 }
 
 /**

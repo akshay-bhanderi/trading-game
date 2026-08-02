@@ -77,7 +77,9 @@ export default function MarketScreen() {
           maxBuy={maxBuy}
           maxSell={maxSell}
           onBuy={(qty) =>
-            effectiveDestination === 'cargo' ? buy(selectedGood.id, qty) : buyIntoWarehouse(selectedGood.id, qty)
+            effectiveDestination === 'cargo'
+              ? buy(selectedGood.id, qty)
+              : buyIntoWarehouse(game.currentCity, selectedGood.id, qty)
           }
           onSell={(qty) =>
             effectiveDestination === 'cargo' ? sell(selectedGood.id, qty) : sellFromWarehouse(selectedGood.id, qty)
