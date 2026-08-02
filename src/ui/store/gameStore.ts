@@ -24,7 +24,7 @@ import { buyCargoUpgrade as engineBuyCargoUpgrade } from '../../engine/cargo'
 import { buy as engineBuy, sell as engineSell } from '../../engine/actions/trade'
 import { travel as engineTravel, advanceTravelDay } from '../../engine/actions/travel'
 import { stay as engineStay } from '../../engine/actions/stay'
-import { checkCityUnlocks, checkGoodUnlocks } from '../../engine/unlocks'
+import { checkCityUnlocks, checkGoodUnlocks, buyLicense as engineBuyLicense } from '../../engine/unlocks'
 import { hasSavedGame, loadGame, saveGame } from '../../engine/persistence/saveLoad'
 import { recordScore } from '../../engine/persistence/highScore'
 import { deposit as engineDeposit, withdraw as engineWithdraw } from '../../engine/bank/deposits'
@@ -62,6 +62,14 @@ interface GameStoreState {
   newGame: (difficulty: Difficulty) => void
   buy: (goodId: GoodId, qty: number) => void
   sell: (goodId: GoodId, qty: number) => void
+  /** BUGFIX (2026-08): §5 licenses — engine-complete since T009 (unlocks.ts's
+   * `buyLicense`) but NEVER wired to any UI, so a real player had no way to
+   * ever buy one, no matter how much net worth or how many days they racked
+   * up — every good past Grain/Cotton/Iron was permanently unreachable.
+   * Surfaced in BankScreen's new License tab (§5: "a license fee paid once
+   * at any bank"). No-op (engine-rejected) if `goodId` isn't yet unlocked,
+   * is free, is already licensed, or cash is short. */
+  buyLicense: (goodId: GoodId) => void
   /** §2 cargo-capacity upgrades — engine-complete since T011 but never
    * wired to any UI until this 2026-08 pass (see cargo.ts's
    * `buyCargoUpgrade`). No-op (engine-rejected) at the top tier or with
@@ -214,6 +222,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const price = game.priceStates[game.currentCity]?.[goodId]?.currentPrice
     if (price === undefined) return
     commit(set, refreshUnlocks(engineSell(game, goodId, qty, price)))
+  },
+
+  buyLicense: (goodId) => {
+    const { game } = get()
+    if (!game) return
+    commit(set, refreshUnlocks(engineBuyLicense(game, goodId)))
   },
 
   buyIntoWarehouse: (targetCityId, goodId, qty) => {

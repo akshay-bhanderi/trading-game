@@ -26,6 +26,7 @@
 import { useEffect, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { CITIES } from '../../engine/data/cities'
+import { GOODS } from '../../engine/data/goods'
 import { CONFIG } from '../../engine/config'
 import { rankFactor } from '../../engine/bank/loans'
 import { calcTotalDebt } from '../../engine/bank/default'
@@ -114,7 +115,7 @@ function AmountStepper({
   )
 }
 
-type BankTab = 'deposit' | 'withdraw' | 'loan'
+type BankTab = 'deposit' | 'withdraw' | 'loan' | 'license'
 
 export default function BankScreen() {
   const game = useGameStore((s) => s.game)
@@ -123,6 +124,7 @@ export default function BankScreen() {
   const takeLoan = useGameStore((s) => s.takeLoan)
   const repayLoan = useGameStore((s) => s.repayLoan)
   const resolveDefault = useGameStore((s) => s.resolveDefault)
+  const buyLicense = useGameStore((s) => s.buyLicense)
 
   const [activeTab, setActiveTab] = useState<BankTab>('deposit')
 
@@ -177,6 +179,14 @@ export default function BankScreen() {
   const depositBalance = game.deposit ?? 0
   const maxLoan = city ? CONFIG.banking.loanBaseCaps[city.bankSize] * rankFactor(game.rankCache.value) : 0
   const outstanding = account?.loan ? account.loan.principal + account.loan.accruedInterest : 0
+  // §5: goods that have met their unlock condition but still need their
+  // one-time license fee paid before they show up in the Market — see
+  // gameStore.ts's `buyLicense` doc comment for the "never wired to any UI"
+  // bug this tab fixes. Free goods (licenseFee === null) never appear here;
+  // they were already tradeable from day 0 with no purchase step.
+  const purchasableLicenses = GOODS.filter(
+    (g) => g.licenseFee !== null && game.unlockedGoodIds.includes(g.id) && !game.purchasedLicenseGoodIds.includes(g.id),
+  )
 
   return (
     <div className="bank-screen">
@@ -207,6 +217,12 @@ export default function BankScreen() {
             onClick={() => setActiveTab('loan')}
           >
             Loan
+          </button>
+          <button
+            className={activeTab === 'license' ? 'trade-tab trade-tab--active' : 'trade-tab secondary'}
+            onClick={() => setActiveTab('license')}
+          >
+            Licenses
           </button>
         </div>
 
@@ -272,6 +288,31 @@ export default function BankScreen() {
                   emptyText="No loan available at this bank."
                 />
               </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'license' && (
+          <>
+            {purchasableLicenses.length === 0 ? (
+              <p className="muted">
+                No new licenses available yet — reach further cities (or wait for day 5) to unlock more goods.
+              </p>
+            ) : (
+              purchasableLicenses.map((good) => (
+                <div className="row" key={good.id}>
+                  <span>
+                    {good.name} <span className="muted">— ${formatMoney(good.licenseFee ?? 0)}</span>
+                  </span>
+                  <button
+                    className="secondary"
+                    disabled={game.cash < (good.licenseFee ?? 0)}
+                    onClick={() => buyLicense(good.id)}
+                  >
+                    Buy license
+                  </button>
+                </div>
+              ))
             )}
           </>
         )}
