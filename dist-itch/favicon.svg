@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#2a2438"/>
+      <stop offset="70%" stop-color="#14101c"/>
+    </radialGradient>
+    <radialGradient id="coin" cx="38%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="#f6c265"/>
+      <stop offset="55%" stop-color="#e8a33d"/>
+      <stop offset="100%" stop-color="#a5641a"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- coin -->
+  <circle cx="256" cy="270" r="150" fill="url(#coin)" stroke="#4e2f16" stroke-width="10"/>
+  <circle cx="256" cy="270" r="122" fill="none" stroke="#a5641a" stroke-width="6" opacity="0.55"/>
+
+  <!-- sailboat silhouette -->
+  <g fill="#201327">
+    <rect x="250" y="150" width="12" height="130" rx="3"/>
+    <path d="M262 158 L340 258 L262 258 Z"/>
+    <path d="M250 176 L192 250 L250 250 Z"/>
+    <path d="M186 282 Q256 320 326 282 L302 316 Q256 336 210 316 Z"/>
+  </g>
+
+  <!-- wind lines -->
+  <g stroke="#f4ecd8" stroke-width="10" stroke-linecap="round" opacity="0.85">
+    <path d="M110 340 h70" />
+    <path d="M96 366 h100" />
+    <path d="M332 340 h70" />
+    <path d="M316 366 h100" />
+  </g>
+</svg>

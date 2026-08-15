@@ -61,6 +61,17 @@ describe('hireCA — gating', () => {
     expect(result.cash).toBe(30_000 - CONFIG.tax.caTiers.junior.annualFee)
     expect(result.hiredCATierThisFiscalYear).toBe('junior')
   })
+
+  it('rejects hiring again the same fiscal year, even for a different tier — no second fee charged', () => {
+    let state = makeState({ currentCity: 'port-vela', cash: 1_000_000 })
+    state = hireCA(state, 'junior')
+    const cashAfterFirstHire = state.cash
+
+    const result = hireCA(state, 'elite')
+    expect(result).toBe(state)
+    expect(result.cash).toBe(cashAfterFirstHire)
+    expect(result.hiredCATierThisFiscalYear).toBe('junior')
+  })
 })
 
 describe('hireCA + runYearEnd — blended rate per tier', () => {

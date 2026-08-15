@@ -33,16 +33,17 @@
  * file's own T031 updates.
  *
  * ---------------------------------------------------------------------------
- * DESIGN — re-hiring/upgrading mid-year is allowed, not specially rejected
+ * DESIGN — re-hiring/upgrading mid-year is rejected (user-requested, 2026-08)
  * ---------------------------------------------------------------------------
- * Nothing in §10 says hiring a second time (the same tier, or a different
- * one) within the same fiscal year is disallowed — `hireCA` always charges
- * the tier's full annual fee and overwrites
- * `hiredCATierThisFiscalYear` with whatever tier was just requested. This
- * means a player COULD wastefully hire Junior then Elite the same year
- * (paying both fees, only the Elite rate ends up applying) — a real but
- * minor inefficiency the task brief doesn't ask this file to guard against,
- * left as the player's own choice.
+ * Originally `hireCA` allowed hiring again (same tier or a different one)
+ * within the same fiscal year, always charging the full annual fee again.
+ * Player feedback: this let you repeatedly hire and just lose money with no
+ * extra effect, since only `hiredCATierThisFiscalYear`'s current value ever
+ * matters to tax.ts. `hireCA` now rejects the call outright whenever
+ * `state.hiredCATierThisFiscalYear` is already something other than
+ * `'none'` — one hire per fiscal year, full stop. `runYearEnd` resetting the
+ * field back to `'none'` (tax.ts, T030/T031) is what reopens hiring next
+ * year.
  */
 
 import { CONFIG } from './config'
@@ -83,15 +84,19 @@ export function isCAHiringAvailable(state: GameState): boolean {
  *
  * Validates:
  *   - `isCAHiringAvailable(state)` — must be standing in a Medium+ bank city
+ *   - `state.hiredCATierThisFiscalYear` is `'none'` or unset — no CA hired
+ *     yet this fiscal year (see file header — re-hiring is rejected, not
+ *     charged again)
  *   - `state.cash >= CONFIG.tax.caTiers[tier].annualFee`
  *
  * On success: deducts the tier's annual fee from `state.cash` and sets
  * `state.hiredCATierThisFiscalYear = tier` (see file header for why this is
  * scoped to the current year only). Rejected (returns the identical `state`
- * reference, unchanged) when either validation fails.
+ * reference, unchanged) when any validation fails.
  */
 export function hireCA(state: GameState, tier: Exclude<CATier, 'none'>): GameState {
   if (!isCAHiringAvailable(state)) return state
+  if (state.hiredCATierThisFiscalYear && state.hiredCATierThisFiscalYear !== 'none') return state
 
   const fee = CONFIG.tax.caTiers[tier].annualFee
   if (state.cash < fee) return state

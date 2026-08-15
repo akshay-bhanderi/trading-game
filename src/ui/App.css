@@ -562,12 +562,16 @@ button.secondary {
   gap: 10px;
   text-align: left;
   background: var(--paper);
-  min-height: 48px;
+  min-height: 36px;
 }
 
 .market-row-name {
   font-family: var(--font-body);
   font-size: 17px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .market-row-owned {
@@ -582,9 +586,10 @@ button.secondary {
 
 .market-row-prices {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
   font-family: var(--font-body);
   font-size: 13px;
   line-height: 1.3;

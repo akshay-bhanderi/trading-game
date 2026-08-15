@@ -42,8 +42,14 @@ export default function CAScreen() {
         <div className="nav-grid">
           {(['junior', 'senior', 'elite'] as const).map((tier) => {
             const cfg = CONFIG.tax.caTiers[tier]
+            const alreadyHired = game.hiredCATierThisFiscalYear !== 'none'
             return (
-              <button key={tier} className="secondary" disabled={game.cash < cfg.annualFee} onClick={() => hireCA(tier)}>
+              <button
+                key={tier}
+                className="secondary"
+                disabled={alreadyHired || game.cash < cfg.annualFee}
+                onClick={() => hireCA(tier)}
+              >
                 {tier} (${formatMoney(cfg.annualFee)}) — {(cfg.taxRate * 100).toFixed(0)}% tax up to $
                 {cfg.profitCap !== null ? formatMoney(cfg.profitCap) : '—'}
               </button>
